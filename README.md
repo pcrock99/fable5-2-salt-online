@@ -34,6 +34,28 @@
 
 更多截图与视频素材位于 [`docs/media/`](docs/media/)。
 
+## 来源说明
+
+本仓库所呈现的浏览器游戏，以 [Felix Rieseberg（@felixrieseberg）](https://x.com/felixrieseberg) 于 2026 年 11 月 10 日在 X 上展示的 **Fable 5.2 单次提示生成游戏实验**为项目源头，并在此基础上补充了 Node.js 服务端、WebSocket 多人联机、5 秒复活、排行榜等功能。
+
+根据原帖说明：
+
+- 游戏中的模型、声音与纹理均从零生成。
+- 按 API 定价计算，本次测试约消耗 550 美元。
+- 使用约 270 万输出令牌与 445 万输入令牌，并大量使用了缓存。
+- 总耗时约 8 小时。
+
+当前仓库由维护者整理与二次开发，并非 Felix Rieseberg 或 Anthropic 的官方仓库。截图中原帖的 Claude Artifact 链接被界面截断，因此这里仅链接作者账号，不填写推测地址。
+
+原帖截图未展示源代码的独立许可证。仓库根目录的 MIT License 仅表示当前维护者对可适用内容作出的授权；再分发或商用前，请核对原作者及原平台的原始条款。
+
+<details>
+<summary>查看原帖截图</summary>
+<p align="center">
+  <img src="docs/media/source-felix-rieseberg.jpg" width="520" alt="Felix Rieseberg 关于 Fable 5.2 游戏实验的原帖截图">
+</p>
+</details>
+
 ## 功能
 
 - 多人在线自由混战（free-for-all）
