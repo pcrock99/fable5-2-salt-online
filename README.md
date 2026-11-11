@@ -10,6 +10,17 @@
 
 [立即进入盐线行动在线版 →](https://web-jjuuxm.tulingai.com/)
 
+## Android 客户端
+
+[下载盐线行动 Android v1.0 APK](https://github.com/wenzhengshi/fable5-2-salt-online/releases/download/android-v1.0/saltline-android-v1.0.apk)
+
+- 支持 Android 5.0 及以上版本
+- APK 大小约 5.16 MiB
+- 首次启动需要联网，应用会加载当前在线版游戏
+- SHA-256：`e30974084caff7801c38808dd6212fee1b4e917c33a00ee555186e576a1c1bbe`
+
+版本说明与后续构建见 [Android v1.0 发布页](https://github.com/wenzhengshi/fable5-2-salt-online/releases/tag/android-v1.0)。
+
 ## 游戏预览
 
 <p align="center">
