@@ -1,0 +1,86 @@
+{
+  "meta": {
+    "title": "盐线行动 · Saltline 多人对抗",
+    "description": "盐线行动：浏览器里的多人在线 3D 港口枪战。其他玩家都是你的敌人，倒下 5 秒后自动复活重新进入战场。"
+  },
+  "lang": {
+    "zh": "中文",
+    "en": "English"
+  },
+  "nav": {
+    "title": "盐线行动",
+    "language": "切换语言"
+  },
+  "ui": {
+    "switching": "正在切换语言…",
+    "switchFailed": "语言切换失败，请重试",
+    "noScript": "请启用 JavaScript 以运行 3D 游戏。",
+    "bootHint": "正在唤醒渲染器 · 首次加载需要几秒"
+  },
+  "game": {
+    "title": "盐线行动",
+    "booting": "正在启动",
+    "tagline": "港务局突入小队 · 盐线码头 · 04 号泊位"
+  },
+  "controls": {
+    "move": "移动",
+    "look": "观察",
+    "fire": "射击",
+    "aim": "瞄准",
+    "reload": "换弹",
+    "interact": "切断中继器",
+    "jump": "跳跃",
+    "sprint": "冲刺",
+    "crouch": "蹲伏",
+    "melee": "近战",
+    "pause": "暂停",
+    "roster": "战场名单"
+  },
+  "api": {
+    "health": "服务正常"
+  },
+  "msg": {
+    "hello": "你好，世界！",
+    "langSet": "语言已切换",
+    "apiNotFound": "接口不存在",
+    "pageNotFound": "页面不存在",
+    "badRequest": "请求格式不正确",
+    "serverError": "服务器暂时不可用，请稍后重试"
+  },
+  "gameText": {},
+  "gamePatterns": {},
+  "mp": {
+    "online": "在线",
+    "connecting": "连接中",
+    "reconnecting": "重连中",
+    "connected": "多人连接已就绪",
+    "close": "关闭",
+    "disconnected": "多人连接中断，正在自动重连…",
+    "you": "你",
+    "roster": "战场名单",
+    "rosterHint": "按 Tab 打开或关闭名单 · 点击右上角按钮也可以",
+    "callsign": "战场代号",
+    "save": "保存",
+    "nameSaved": "代号已更新",
+    "nameInvalid": "代号需为 1-16 个字符",
+    "titleLine": "多人在线 · 其他玩家都是你的敌人 · 倒下 5 秒后自动复活",
+    "titleOnline": "在线 {n} 人",
+    "down": "你被击倒了",
+    "downBy": "被 {name} 击倒",
+    "respawnIn": "{n} 秒后复活",
+    "respawnNow": "重新进入战场",
+    "respawned": "已重新进入战场",
+    "respawningShort": "等待复活",
+    "hitBlocked": "目标处于复活保护状态",
+    "youKilled": "你击倒了 {name}",
+    "fallenShort": "倒下了",
+    "join": "{name} 进入战场",
+    "leave": "{name} 离开战场",
+    "return": "{name} 已复活",
+    "rename": "{name} 改名为 {next}",
+    "emptyRoster": "战场暂时只有你",
+    "board": "排行榜",
+    "boardEmpty": "还没有战绩记录",
+    "hint": "击倒其他玩家 · 倒下后 5 秒复活 · Tab 查看名单"
+  }
+}

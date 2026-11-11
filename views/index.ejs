@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="<%= lang %>" data-app-lang="<%= lang %>">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
+    <meta name="color-scheme" content="dark" />
+    <meta name="theme-color" content="#0b0d0f" />
+    <meta name="description" content="<%= t('meta.description') %>" />
+    <title><%= t('meta.title') %></title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@700;800;900&family=Barlow+Condensed:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&family=Noto+Sans+SC:wght@400;500;600;700;900&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="/css/game.css" />
+    <link rel="stylesheet" href="/css/multiplayer.css" />
+    <link rel="stylesheet" href="/css/style.css" />
+  </head>
+  <body>
+    <div id="app">
+      <canvas id="view"></canvas>
+      <div id="ui"></div>
+      <div id="boot">
+        <div class="boot-mark"><%= t('game.title') %></div>
+        <div class="boot-sub" id="boot-msg"><%= t('game.booting') %></div>
+        <div class="boot-hint"><%= t('ui.bootHint') %></div>
+        <div class="boot-bar"><i id="boot-fill"></i></div>
+      </div>
+
+      <nav class="lang-switch" aria-label="<%= t('nav.language') %>">
+        <span class="lang-switch-k" aria-hidden="true"><%= t('nav.language') %></span>
+        <button type="button" data-lang="zh-CN" aria-pressed="<%= lang === 'zh-CN' %>" class="<%= lang === 'zh-CN' ? 'active' : '' %>">
+          <%= t('lang.zh') %>
+        </button>
+        <button type="button" data-lang="en-US" aria-pressed="<%= lang === 'en-US' %>" class="<%= lang === 'en-US' ? 'active' : '' %>">
+          <%= t('lang.en') %>
+        </button>
+      </nav>
+
+      <div class="app-toast" id="app-toast" role="status" aria-live="polite" hidden></div>
+    </div>
+
+    <noscript>
+      <div class="noscript-card"><%= t('ui.noScript') %></div>
+    </noscript>
+
+    <script>
+      window.__SALT_I18N__ = <%- JSON.stringify({ lang: lang, messages: messages }).replace(/</g, '\\u003c') %>;
+    </script>
+    <script src="/js/game.bundle.js"></script>
+    <script src="/js/ammo.js"></script>
+    <script src="/js/sail.js"></script>
+    <script src="/js/i18n.js"></script>
+    <script src="/js/multiplayer.js"></script>
+  </body>
+</html>
