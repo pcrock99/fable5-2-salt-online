@@ -1,7 +1,7 @@
 {
   "meta": {
     "title": "盐线行动 · Saltline 多人对抗",
-    "description": "盐线行动：浏览器里的多人在线 3D 港口枪战。全员自由混战，倒下 5 秒复活，支持在线开麦与全服大字交流。"
+    "description": "盐线行动：浏览器里的多人在线 3D 港口枪战。全员自由混战，倒下 5 秒复活，支持全服开麦语音、单独静音、全服大字交流与敏感词拦截。"
   },
   "lang": {
     "zh": "中文",
@@ -65,7 +65,10 @@
     "save": "保存",
     "nameSaved": "代号已更新",
     "nameInvalid": "代号需为 1-16 个字符",
-    "titleLine": "多人在线 · 全员敌人 · 倒下 5 秒复活 · 在线开麦 · 全服大字通讯",
+    "nameBlocked": "代号包含敏感词或不当用语，请更换后重试",
+    "nameFiltered": "该代号已被内容安全策略拦截，已为你分配安全代号",
+    "nameNote": "代号会经过敏感词与规避写法检测",
+    "titleLine": "多人在线 · 全员敌人 · 5 秒复活 · 全服语音与大字通讯",
     "titleOnline": "在线 {n} 人",
     "down": "你被击倒了",
     "downBy": "被 {name} 击倒",
@@ -83,7 +86,9 @@
     "emptyRoster": "战场暂时只有你",
     "board": "排行榜",
     "boardEmpty": "还没有战绩记录",
-    "hint": "M 开麦 · T 发大字 · 倒下后 5 秒复活 · Tab 查看名单"
+    "hint": "M 开麦全服可听 · T 发大字 · Tab 查看名单",
+    "repo": "GitHub 仓库",
+    "repoHint": "查看源码、提交问题与最新更新"
   },
   "comms": {
     "kicker": "盐线行动 / 通讯",
@@ -96,17 +101,28 @@
     "voiceMuted": "已静音",
     "voiceIdle": "语音关闭",
     "voiceConnecting": "连接语音…",
-    "voiceHint": "点击开麦，与在线玩家实时通话",
+    "voiceHint": "点击开麦，全服玩家都能听到你；不开麦也能收听",
     "voiceRequiresSecure": "语音需要 HTTPS 或 localhost 环境",
     "voiceUnsupported": "当前浏览器不支持在线语音",
     "voiceDenied": "麦克风权限被拒绝，请在浏览器设置中允许",
     "voiceFailed": "麦克风开启失败，请检查设备后重试",
-    "voiceEnabledToast": "已开麦，在线玩家现在能听到你",
+    "voiceEnabledToast": "已开麦，全服玩家现在都能听到你",
     "voiceDisabledToast": "已关麦",
     "voiceMutedToast": "麦克风已静音",
     "voiceUnmutedToast": "麦克风已恢复",
-    "voicePeers": "{n} 人开麦",
-    "voiceNoPeers": "你是唯一开麦的玩家",
+    "voicePeers": "{n} 人正在开麦",
+    "voiceNoPeers": "目前还没有人开麦",
+    "micMute": "静音麦克风",
+    "micUnmute": "取消静音",
+    "micMutedToast": "麦克风已静音，其他人暂时听不到你",
+    "micUnmutedToast": "麦克风已恢复",
+    "listenMute": "静音全服语音",
+    "listenUnmute": "恢复全服语音",
+    "listenMutedShort": "你已静音",
+    "listenMutedToast": "已静音其他玩家语音",
+    "listenUnmutedToast": "已恢复其他玩家语音",
+    "peerMuteHint": "点击静音或恢复 {name} 的语音",
+    "voiceRelayHint": "全服语音已接通 · 无需开麦也能收听 · 点击玩家可单独静音",
     "speaking": "说话中",
     "bigText": "大字交流",
     "panelTitle": "大字频道",
@@ -116,7 +132,9 @@
     "close": "关闭",
     "empty": "请输入内容",
     "rate": "发送太快，请稍后再试",
+    "blocked": "消息包含敏感词或不当用语，已被拦截",
     "sent": "大字已发送",
+    "moderationNote": "文明交流 · 敏感词、脏话与拆字规避会被自动拦截",
     "quick": "快捷喊话",
     "quickHelp": "需要支援！",
     "quickPush": "跟我推进！",
@@ -129,7 +147,7 @@
     "microphone": "麦克风",
     "shortcutMic": "M 开麦",
     "shortcutChat": "T 大字",
-    "popupBlocked": "点击麦克风按钮以播放语音",
+    "popupBlocked": "点击任意位置开启全服语音播放",
     "count": "{n}/80"
   }
 }

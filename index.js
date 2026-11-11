@@ -4,18 +4,20 @@ const http = require('http');
 const express = require('express');
 const compression = require('compression');
 const apiRouter = require('./routes/api');
-const { attachMultiplayer } = require('./realtime/multiplayer');
+const { attachMultiplayer, shutdownMultiplayer } = require('./realtime/multiplayer');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 const HOST = process.env.HOST || '127.0.0.1';
-const ASSET_VERSION = '20261111-comms';
+const ASSET_VERSION = '20261112-clean';
 
 app.set('view engine', 'ejs');
 app.set('views', path.join(__dirname, 'views'));
 app.set('trust proxy', 1);
 
-// 安全默认：只允许同源页面通过 iframe 嵌入。
+// 源码安全默认：只允许同源页面 iframe 嵌入。
+// 突灵AI自己的“临时托管预览”不会依赖这段源码放行，
+// 平台会在 source.zip 生成之后，仅对临时 Node 进程注入运行时兼容层。
 app.use((req, res, next) => {
   res.setHeader('X-Frame-Options', 'SAMEORIGIN');
   res.setHeader('Cross-Origin-Resource-Policy', 'same-origin');
@@ -61,6 +63,7 @@ function parseAcceptLanguage(header) {
 // i18n 中间件：解析 lang cookie 与 Accept-Language，提供 req.lang / req.t(key)
 app.use((req, res, next) => {
   const cookies = parseCookies(req.headers.cookie);
+  req.cookies = cookies;
   const accepted = parseAcceptLanguage(req.headers['accept-language']);
   let lang = cookies.lang;
   if (lang !== 'zh-CN' && lang !== 'en-US') {
@@ -128,3 +131,20 @@ server.listen(PORT, HOST, () => {
   console.log('Server running at http://' + HOST + ':' + PORT);
   console.log('Multiplayer WebSocket ready at ws://' + HOST + ':' + PORT + '/ws');
 });
+
+let shuttingDown = false;
+function shutdown(signal) {
+  if (shuttingDown) return;
+  shuttingDown = true;
+  console.log('[server] received ' + signal + ', shutting down');
+  try {
+    shutdownMultiplayer();
+  } catch (err) {
+    console.error('[server] shutdown persist failed', err && err.message);
+  }
+  server.close(() => process.exit(0));
+  setTimeout(() => process.exit(0), 1500).unref();
+}
+
+process.on('SIGTERM', () => shutdown('SIGTERM'));
+process.on('SIGINT', () => shutdown('SIGINT'));

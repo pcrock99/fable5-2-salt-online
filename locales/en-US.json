@@ -1,7 +1,7 @@
 {
   "meta": {
     "title": "Saltline · Online Free-for-All",
-    "description": "Saltline: an online 3D port firefight in your browser. Free-for-all combat, 5-second respawns, live open-mic voice and server-wide big-text chat."
+    "description": "Saltline: an online 3D port firefight in your browser. Free-for-all combat, 5-second respawns, server-wide voice, per-player mute, big-text chat and blocked-language filtering."
   },
   "lang": {
     "zh": "中文",
@@ -273,7 +273,10 @@
     "save": "Save",
     "nameSaved": "Callsign updated",
     "nameInvalid": "Callsign must be 1-16 characters",
-    "titleLine": "Online free-for-all · all players are enemies · 5s respawn · open voice · server-wide big text",
+    "nameBlocked": "Callsign contains blocked language. Choose another.",
+    "nameFiltered": "That callsign was blocked. A safe callsign was assigned.",
+    "nameNote": "Callsigns are screened for blocked and disguised language",
+    "titleLine": "Online free-for-all · 5s respawn · global voice & big text",
     "titleOnline": "{n} online",
     "down": "You are down",
     "downBy": "Downed by {name}",
@@ -291,7 +294,9 @@
     "emptyRoster": "No other players in the fight yet",
     "board": "Leaderboard",
     "boardEmpty": "No records yet",
-    "hint": "M for voice · T for big text · respawn 5s after going down · Tab for roster"
+    "hint": "M for server-wide mic · T for big text · Tab for roster",
+    "repo": "GitHub repository",
+    "repoHint": "View source, report issues and follow updates"
   },
   "comms": {
     "kicker": "SALTLINE / COMMS",
@@ -304,17 +309,28 @@
     "voiceMuted": "MUTED",
     "voiceIdle": "VOICE OFF",
     "voiceConnecting": "CONNECTING…",
-    "voiceHint": "Turn on your mic to talk to everyone online",
+    "voiceHint": "Turn on your mic to reach every player; listen without a mic",
     "voiceRequiresSecure": "Voice requires HTTPS or localhost",
     "voiceUnsupported": "This browser does not support live voice",
     "voiceDenied": "Microphone permission denied — allow it in browser settings",
     "voiceFailed": "Could not start the microphone. Check your device and retry",
-    "voiceEnabledToast": "Mic live — online players can hear you",
+    "voiceEnabledToast": "Mic live — every player online can hear you",
     "voiceDisabledToast": "Microphone off",
     "voiceMutedToast": "Microphone muted",
     "voiceUnmutedToast": "Microphone unmuted",
-    "voicePeers": "{n} on voice",
-    "voiceNoPeers": "You are the only one on voice",
+    "voicePeers": "{n} live mic",
+    "voiceNoPeers": "No one has opened their mic yet",
+    "micMute": "Mute mic",
+    "micUnmute": "Unmute mic",
+    "micMutedToast": "Mic muted — others cannot hear you",
+    "micUnmutedToast": "Mic unmuted",
+    "listenMute": "Mute all voice",
+    "listenUnmute": "Unmute all voice",
+    "listenMutedShort": "Muted by you",
+    "listenMutedToast": "Other players are muted",
+    "listenUnmutedToast": "Other players unmuted",
+    "peerMuteHint": "Click to mute or unmute {name}",
+    "voiceRelayHint": "Global voice is connected · listen without a mic · click a player to mute them",
     "speaking": "Speaking",
     "bigText": "BIG TEXT",
     "panelTitle": "BIG TEXT CHANNEL",
@@ -324,7 +340,9 @@
     "close": "Close",
     "empty": "Enter a message first",
     "rate": "Too fast — wait a moment",
+    "blocked": "Message blocked — it contains prohibited or disguised language",
     "sent": "Big text sent",
+    "moderationNote": "Play nice — profanity, slurs and disguised terms are filtered automatically",
     "quick": "QUICK CALLS",
     "quickHelp": "Need support!",
     "quickPush": "Push with me!",
@@ -337,7 +355,7 @@
     "microphone": "Microphone",
     "shortcutMic": "M mic",
     "shortcutChat": "T big text",
-    "popupBlocked": "Tap the mic button to allow voice playback",
+    "popupBlocked": "Tap anywhere to start global voice playback",
     "count": "{n}/80"
   }
 }

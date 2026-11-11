@@ -9,6 +9,8 @@
 
   const STORAGE_NAME = 'saltline.multiplayer.name';
   const CALLSIGNS = ['RAVEN', 'VIPER', 'KESTREL', 'TALON', 'DRIFT', 'CINDER', 'ASH', 'MOSS'];
+  const REPO_URL = 'https://github.com/wenzhengshi/fable5-2-salt-online';
+  const REPO_ICON = '<svg viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0 0 16 8c0-4.42-3.58-8-8-8Z"/></svg>';
 
   function t(key, vars) {
     const raw = MP[key];
@@ -16,6 +18,57 @@
     return raw.replace(/\{(\w+)\}/g, (match, name) => (
       vars && Object.prototype.hasOwnProperty.call(vars, name) ? String(vars[name]) : match
     ));
+  }
+
+  function createRepoLink(variant) {
+    const link = document.createElement('a');
+    link.className = 'salt-repo' + (variant ? ' salt-repo-' + variant : '');
+    link.href = REPO_URL;
+    link.target = '_blank';
+    link.rel = 'noopener noreferrer';
+    link.title = t('repoHint');
+    link.setAttribute('aria-label', t('repo') + ' — ' + t('repoHint') + ': ' + REPO_URL);
+
+    const glyph = document.createElement('span');
+    glyph.className = 'salt-repo-glyph';
+    glyph.innerHTML = REPO_ICON;
+
+    const copy = document.createElement('span');
+    copy.className = 'salt-repo-copy';
+    const label = document.createElement('b');
+    label.textContent = t('repo');
+    const url = document.createElement('em');
+    url.textContent = REPO_URL;
+    url.dir = 'ltr';
+    copy.append(label, url);
+
+    const arrow = document.createElement('span');
+    arrow.className = 'salt-repo-arrow';
+    arrow.setAttribute('aria-hidden', 'true');
+    arrow.textContent = '↗';
+
+    link.append(glyph, copy, arrow);
+    return link;
+  }
+
+  function decorateRepoLinks() {
+    const titleMain = document.querySelector('.m-screen[data-s="title"] .m-title-main');
+    if (titleMain && !titleMain.querySelector('[data-mp-repo="title"]')) {
+      const mount = document.createElement('div');
+      mount.className = 'mp-title-repo';
+      mount.setAttribute('data-mp-repo', 'title');
+      mount.appendChild(createRepoLink('title'));
+      titleMain.appendChild(mount);
+    }
+
+    const paused = document.querySelector('.m-screen[data-s="paused"]');
+    if (paused && !paused.querySelector('[data-mp-repo="paused"]')) {
+      const mount = document.createElement('div');
+      mount.className = 'mp-paused-repo';
+      mount.setAttribute('data-mp-repo', 'paused');
+      mount.appendChild(createRepoLink('paused'));
+      paused.appendChild(mount);
+    }
   }
 
   function randomName() {
@@ -56,6 +109,7 @@
   let stateTimer = 0;
   let lastStateAt = 0;
   let everJoined = false;
+  let pendingRename = null;
 
   const respawn = {
     active: false,
@@ -71,6 +125,7 @@
 
   const avatars = new Map();
   const messageListeners = new Set();
+  const binaryListeners = new Set();
   let lastFrame = 0;
 
   /* ------------------------------------------------------------------- UI */
@@ -113,11 +168,13 @@
             <input id="mp-name-input" maxlength="16" autocomplete="off" spellcheck="false" />
             <button id="mp-name-save" type="button"></button>
           </div>
+          <p class="mp-name-note" data-mp-label="nameNote"></p>
         </div>
         <div class="mp-roster-board">
           <b data-mp-label="board"></b>
           <ol id="mp-board-list"></ol>
         </div>
+        <div class="mp-roster-repo" id="mp-roster-repo"></div>
         <p class="mp-roster-hint" data-mp-label="rosterHint"></p>
       </div>
     </div>
@@ -146,6 +203,7 @@
     nameInput: ui.querySelector('#mp-name-input'),
     nameSave: ui.querySelector('#mp-name-save'),
     boardList: ui.querySelector('#mp-board-list'),
+    rosterRepo: ui.querySelector('#mp-roster-repo'),
     toast: ui.querySelector('#mp-toast'),
     rosterClose: ui.querySelector('#mp-roster-close')
   };
@@ -154,6 +212,7 @@
     online: t('online'),
     roster: t('roster'),
     callsign: t('callsign'),
+    nameNote: t('nameNote'),
     board: t('board'),
     rosterHint: t('rosterHint')
   };
@@ -167,6 +226,7 @@
   el.rosterClose.setAttribute('aria-label', t('close'));
   el.nameInput.value = myName;
   el.nameSave.textContent = t('save');
+  el.rosterRepo.appendChild(createRepoLink('compact'));
 
   let toastTimer = 0;
   let lastBlockedToast = 0;
@@ -231,10 +291,12 @@
   const titlePoll = window.setInterval(() => {
     titleTries += 1;
     decorateTitle();
-    const found = !!document.querySelector('[data-mp-title]');
+    decorateRepoLinks();
+    const found = !!document.querySelector('[data-mp-title]') && !!document.querySelector('[data-mp-repo="title"]');
     if ((found && titleTries > 2) || titleTries > 40) window.clearInterval(titlePoll);
   }, 1000);
   decorateTitle();
+  decorateRepoLinks();
 
   /* ------------------------------------------------------------- kill feed */
 
@@ -393,11 +455,19 @@
       toast(t('nameInvalid'));
       return;
     }
-    myName = next;
-    saveName(myName);
-    el.nameInput.value = myName;
-    send({ type: 'rename', name: myName });
-    toast(t('nameSaved'));
+    el.nameInput.classList.remove('is-invalid');
+    if (next === myName) {
+      el.nameInput.value = myName;
+      toast(t('nameSaved'));
+      return;
+    }
+    if (!send({ type: 'rename', name: next })) {
+      toast(t('disconnected'));
+      return;
+    }
+    pendingRename = next;
+    el.nameSave.disabled = true;
+    el.nameSave.setAttribute('aria-busy', 'true');
   });
   el.nameInput.addEventListener('keydown', (event) => {
     if (event.key === 'Enter') {
@@ -405,6 +475,9 @@
       event.stopPropagation();
       el.nameSave.click();
     }
+  });
+  el.nameInput.addEventListener('input', () => {
+    el.nameInput.classList.remove('is-invalid');
   });
 
   /* ---------------------------------------------------------- respawn flow */
@@ -908,10 +981,26 @@
     }
   }
 
+  function sendBinary(payload) {
+    if (!ws || ws.readyState !== 1 || !payload) return false;
+    try {
+      ws.send(payload);
+      return true;
+    } catch (err) {
+      return false;
+    }
+  }
+
   function onMessage(handler) {
     if (typeof handler !== 'function') return () => {};
     messageListeners.add(handler);
     return () => messageListeners.delete(handler);
+  }
+
+  function onBinary(handler) {
+    if (typeof handler !== 'function') return () => {};
+    binaryListeners.add(handler);
+    return () => binaryListeners.delete(handler);
   }
 
   function notifyMessage(msg) {
@@ -920,6 +1009,16 @@
         handler(msg);
       } catch (err) {
         console.error('[mp] message listener failed', err);
+      }
+    }
+  }
+
+  function notifyBinary(data) {
+    for (const handler of binaryListeners) {
+      try {
+        handler(data);
+      } catch (err) {
+        console.error('[mp] binary listener failed', err);
       }
     }
   }
@@ -957,6 +1056,7 @@
       return;
     }
     ws = socket;
+    socket.binaryType = 'arraybuffer';
 
     socket.addEventListener('open', () => {
       connected = true;
@@ -973,6 +1073,14 @@
     });
 
     socket.addEventListener('message', (event) => {
+      if (event.data instanceof ArrayBuffer) {
+        notifyBinary(event.data);
+        return;
+      }
+      if (typeof Blob !== 'undefined' && event.data instanceof Blob) {
+        event.data.arrayBuffer().then(notifyBinary).catch(() => {});
+        return;
+      }
       let msg;
       try { msg = JSON.parse(event.data); } catch (err) { return; }
       handleMessage(msg);
@@ -981,6 +1089,7 @@
     socket.addEventListener('close', () => {
       connected = false;
       myId = null;
+      pendingRename = null;
       onlineCount = 0;
       pingMs = null;
       rosterData = [];
@@ -1015,12 +1124,30 @@
         break;
       }
       case 'joined': {
+        const acceptedRename = msg.renamed === true || !!pendingRename;
+        const filtered = msg.filtered === true;
+        pendingRename = null;
+        el.nameSave.disabled = false;
+        el.nameSave.removeAttribute('aria-busy');
+        el.nameInput.classList.remove('is-invalid');
         myId = msg.id;
         myName = msg.name;
         myColor = msg.color || myColor;
         el.nameInput.value = myName;
         saveName(myName);
         everJoined = true;
+        if (filtered) toast(t('nameFiltered'));
+        else if (acceptedRename) toast(t('nameSaved'));
+        break;
+      }
+      case 'nameDenied': {
+        pendingRename = null;
+        el.nameSave.disabled = false;
+        el.nameSave.removeAttribute('aria-busy');
+        el.nameInput.value = myName;
+        el.nameInput.classList.add('is-invalid');
+        window.setTimeout(() => el.nameInput.classList.remove('is-invalid'), 2200);
+        toast(msg.reason === 'filtered' ? t('nameBlocked') : t('nameInvalid'));
         break;
       }
       case 'snapshot': {
@@ -1292,6 +1419,8 @@
     },
     toast,
     onMessage,
-    send
+    onBinary,
+    send,
+    sendBinary
   };
 })();

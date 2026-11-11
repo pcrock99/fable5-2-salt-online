@@ -2,6 +2,7 @@
 
 const { WebSocketServer } = require('ws');
 const storage = require('../config/storage');
+const contentFilter = require('../services/contentFilter');
 
 const TICK_MS = 100;
 const RESPAWN_MS = 5000;
@@ -14,8 +15,9 @@ const MAX_MSG_PER_SEC = 160;
 const MAX_SPAWNS = 32;
 const CHAT_MAX = 80;
 const CHAT_COOLDOWN_MS = 1200;
-const MAX_SDP = 12000;
-
+const MAX_AUDIO_CHUNK = 8192;
+const MAX_AUDIO_BYTES_PER_SEC = 96 * 1024;
+const VOICE_MAGIC = 0x56;
 const COLORS = ['#ffb347', '#5fd0ff', '#8affc1', '#ff7a90', '#c39bff', '#ffe066', '#7ef0e2', '#ff9f5a'];
 
 const CALLSIGNS = ['RAVEN', 'VIPER', 'KESTREL', 'TALON', 'DRIFT', 'CINDER', 'ASH', 'MOSS', 'BREAKER', 'HALYARD', 'MARLIN', 'SABLE'];
@@ -25,6 +27,8 @@ let nextId = 1;
 let wss = null;
 let timer = null;
 let heartbeat = null;
+let upgradeServer = null;
+let upgradeHandler = null;
 
 /* ------------------------------------------------------------------ helpers */
 
@@ -93,33 +97,8 @@ function publicVoice(player) {
 
 function voicePayload() {
   return [...players.values()]
-    .filter((player) => player.joined && player.voice.enabled)
+    .filter((player) => player.voice.enabled)
     .map(publicVoice);
-}
-
-function sanitizeSignal(raw) {
-  if (!raw || typeof raw !== 'object') return null;
-  const kind = raw.kind === 'answer' ? 'answer' : raw.kind === 'offer' ? 'offer' : raw.kind === 'ice' ? 'ice' : '';
-  if (!kind) return null;
-  if (kind === 'ice') {
-    const candidate = raw.candidate;
-    if (!candidate || typeof candidate !== 'object') return { kind, candidate: null };
-    return {
-      kind,
-      candidate: {
-        candidate: typeof candidate.candidate === 'string' ? candidate.candidate.slice(0, 4096) : '',
-        sdpMid: typeof candidate.sdpMid === 'string' ? candidate.sdpMid.slice(0, 64) : null,
-        sdpMLineIndex: Number.isFinite(Number(candidate.sdpMLineIndex))
-          ? Math.max(0, Math.min(32, Math.floor(Number(candidate.sdpMLineIndex))))
-          : null,
-        usernameFragment: typeof candidate.usernameFragment === 'string'
-          ? candidate.usernameFragment.slice(0, 128)
-          : null
-      }
-    };
-  }
-  if (typeof raw.sdp !== 'string' || !raw.sdp || raw.sdp.length > MAX_SDP) return null;
-  return { kind, sdp: raw.sdp };
 }
 
 function send(ws, payload) {
@@ -142,6 +121,38 @@ function broadcast(payload, filter) {
       console.error('[mp] broadcast failed', err && err.message);
     }
   }
+}
+
+function broadcastBinary(payload, filter) {
+  for (const player of players.values()) {
+    if (player.ws.readyState !== 1) continue;
+    if (filter && !filter(player)) continue;
+    try {
+      player.ws.send(payload, { binary: true });
+    } catch (err) {
+      console.error('[mp] binary broadcast failed', err && err.message);
+    }
+  }
+}
+
+function relayPlayerAudio(player, data) {
+  if (!player || !player.voice || !player.voice.enabled || player.voice.muted) return;
+  const frame = Buffer.isBuffer(data) ? data : Buffer.from(data);
+  if (frame.length < 2 || frame.length % 2 !== 0 || frame.length > MAX_AUDIO_CHUNK) return;
+
+  const now = Date.now();
+  if (now - player.voice.windowAt >= 1000) {
+    player.voice.windowAt = now;
+    player.voice.windowBytes = 0;
+  }
+  player.voice.windowBytes += frame.length;
+  if (player.voice.windowBytes > MAX_AUDIO_BYTES_PER_SEC) return;
+
+  const payload = Buffer.allocUnsafe(5 + frame.length);
+  payload[0] = VOICE_MAGIC;
+  payload.writeUInt32LE(player.numId, 1);
+  frame.copy(payload, 5);
+  broadcastBinary(payload, (other) => other !== player);
 }
 
 function sanitizeSpawns(raw) {
@@ -193,7 +204,7 @@ function loadBoard() {
   if (!Array.isArray(rows)) return;
   for (const row of rows) {
     const name = sanitizeName(row && row.name);
-    if (!name) continue;
+    if (!name || contentFilter.isBlocked(name)) continue;
     board.set(name.toLowerCase(), {
       name,
       kills: Math.max(0, Math.floor(Number(row.kills) || 0)),
@@ -205,7 +216,10 @@ function loadBoard() {
 }
 
 function flushBoard() {
-  flushTimer = null;
+  if (flushTimer) {
+    clearTimeout(flushTimer);
+    flushTimer = null;
+  }
   const rows = [...board.values()]
     .sort((a, b) => b.kills - a.kills || a.deaths - b.deaths || b.bestStreak - a.bestStreak)
     .slice(0, 300);
@@ -218,7 +232,7 @@ function flushBoard() {
 
 function touchBoard(name, kills, deaths, streak) {
   const clean = sanitizeName(name);
-  if (!clean) return;
+  if (!clean || contentFilter.isBlocked(clean)) return;
   const key = clean.toLowerCase();
   const row = board.get(key) || { name: clean, kills: 0, deaths: 0, bestStreak: 0, updatedAt: 0 };
   row.name = clean;
@@ -304,7 +318,8 @@ function killPlayer(victim, killer, now) {
 }
 
 function uniqueName(candidate, self) {
-  let name = sanitizeName(candidate) || randomName();
+  const clean = sanitizeName(candidate);
+  let name = (!clean || contentFilter.isBlocked(clean)) ? randomName() : clean;
   const taken = new Set(
     [...players.values()].filter((item) => item !== self).map((item) => item.name.toLowerCase())
   );
@@ -334,10 +349,18 @@ function handleMessage(player, raw) {
 
   switch (msg.type) {
     case 'join': {
-      player.name = uniqueName(msg.name, player);
+      const requested = sanitizeName(msg.name);
+      const filtered = !!requested && contentFilter.isBlocked(requested);
+      player.name = uniqueName(filtered ? '' : requested, player);
       player.spawns = sanitizeSpawns(msg.spawns);
       player.joined = true;
-      send(player.ws, { type: 'joined', id: player.id, name: player.name, color: player.color });
+      send(player.ws, {
+        type: 'joined',
+        id: player.id,
+        name: player.name,
+        color: player.color,
+        filtered
+      });
       broadcast({ type: 'notice', kind: 'join', name: player.name, id: player.id });
       break;
     }
@@ -360,6 +383,15 @@ function handleMessage(player, raw) {
         send(player.ws, { type: 'chatDenied', reason: 'empty' });
         break;
       }
+      if (contentFilter.isBlocked(text)) {
+        player.lastChatAt = now;
+        send(player.ws, {
+          type: 'chatDenied',
+          reason: 'filtered',
+          retryIn: CHAT_COOLDOWN_MS
+        });
+        break;
+      }
       player.lastChatAt = now;
       broadcast({
         type: 'chat',
@@ -372,7 +404,6 @@ function handleMessage(player, raw) {
       break;
     }
     case 'voiceState': {
-      if (!player.joined) break;
       const enabled = msg.enabled === true;
       const muted = enabled ? msg.muted === true : true;
       const next = {
@@ -390,27 +421,29 @@ function handleMessage(player, raw) {
       });
       break;
     }
-    case 'rtcSignal': {
-      if (!player.joined) break;
-      const target = players.get(String(msg.targetId));
-      if (!target || target === player) break;
-      if (!player.voice.enabled || !target.voice.enabled) break;
-      const signal = sanitizeSignal(msg.signal);
-      if (!signal) break;
-      send(target.ws, {
-        type: 'rtcSignal',
-        from: { id: player.id, name: player.name, color: player.color },
-        signal
-      });
-      break;
-    }
     case 'rename': {
-      const next = uniqueName(msg.name, player);
-      if (next === player.name) break;
+      const requested = sanitizeName(msg.name);
+      if (!requested) {
+        send(player.ws, { type: 'nameDenied', reason: 'invalid' });
+        break;
+      }
+      if (contentFilter.isBlocked(requested)) {
+        send(player.ws, { type: 'nameDenied', reason: 'filtered' });
+        break;
+      }
+      const next = uniqueName(requested, player);
       const previous = player.name;
       player.name = next;
-      send(player.ws, { type: 'joined', id: player.id, name: player.name, color: player.color });
-      broadcast({ type: 'notice', kind: 'rename', name: player.name, previous, id: player.id });
+      send(player.ws, {
+        type: 'joined',
+        id: player.id,
+        name: player.name,
+        color: player.color,
+        renamed: true
+      });
+      if (next !== previous) {
+        broadcast({ type: 'notice', kind: 'rename', name: player.name, previous, id: player.id });
+      }
       if (player.voice.enabled) {
         broadcast({ type: 'voiceState', player: publicVoice(player) });
       }
@@ -535,10 +568,12 @@ function handleMessage(player, raw) {
 /* --------------------------------------------------------------- connection */
 
 function addPlayer(ws) {
-  const id = 'p' + nextId;
+  const numId = nextId;
+  const id = 'p' + numId;
   nextId += 1;
   const player = {
     id,
+    numId,
     name: randomName(),
     color: colorFor(id),
     ws,
@@ -558,7 +593,7 @@ function addPlayer(ws) {
     lastShotAt: 0,
     lastHitAt: 0,
     lastChatAt: 0,
-    voice: { enabled: false, muted: true, speaking: false },
+    voice: { enabled: false, muted: true, speaking: false, windowAt: 0, windowBytes: 0 },
     lastSeen: Date.now(),
     joined: false,
     msgWindow: Math.floor(Date.now() / 1000),
@@ -572,7 +607,14 @@ function addPlayer(ws) {
     name: player.name,
     color: player.color,
     respawnMs: RESPAWN_MS,
-    online: players.size
+    online: players.size,
+    voiceRelay: {
+      transport: 'pcm-relay',
+      sampleRate: 16000,
+      frameSamples: 320,
+      globalAudience: true,
+      listenerMicRequired: false
+    }
   });
   return player;
 }
@@ -648,7 +690,19 @@ function tick() {
 function attachMultiplayer(server) {
   if (wss) return wss;
   loadBoard();
-  wss = new WebSocketServer({ server, path: '/ws', maxPayload: 16 * 1024 });
+  wss = new WebSocketServer({ noServer: true, maxPayload: 16 * 1024 });
+
+  upgradeServer = server;
+  upgradeHandler = (req, socket, head) => {
+    const raw = String(req.url || '/');
+    const queryAt = raw.indexOf('?');
+    const pathname = queryAt >= 0 ? raw.slice(0, queryAt) : raw;
+    if (pathname !== '/ws') return;
+    wss.handleUpgrade(req, socket, head, (ws) => {
+      wss.emit('connection', ws, req);
+    });
+  };
+  server.on('upgrade', upgradeHandler);
 
   wss.on('connection', (ws, req) => {
     ws.isAlive = true;
@@ -658,8 +712,12 @@ function attachMultiplayer(server) {
       ws.isAlive = true;
     });
 
-    ws.on('message', (data) => {
+    ws.on('message', (data, isBinary) => {
       try {
+        if (isBinary) {
+          relayPlayerAudio(player, data);
+          return;
+        }
         handleMessage(player, data.toString());
       } catch (err) {
         console.error('[mp] message failed', err && err.stack ? err.stack : err);
@@ -699,6 +757,11 @@ function attachMultiplayer(server) {
   if (heartbeat.unref) heartbeat.unref();
 
   wss.on('close', () => {
+    if (upgradeServer && upgradeHandler) {
+      upgradeServer.removeListener('upgrade', upgradeHandler);
+    }
+    upgradeServer = null;
+    upgradeHandler = null;
     if (timer) clearInterval(timer);
     if (heartbeat) clearInterval(heartbeat);
     timer = null;
@@ -712,5 +775,8 @@ module.exports = {
   attachMultiplayer,
   getLeaderboard,
   getOnlinePlayers,
+  shutdownMultiplayer() {
+    flushBoard();
+  },
   RESPAWN_MS
 };

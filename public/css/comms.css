@@ -1,4 +1,4 @@
-/* comms.css — WebRTC open-mic rail, big-text broadcast banner and quick-call panel. */
+/* comms.css — global open-mic rail, big-text broadcast banner and quick-call panel. */
 
 #vc-ui {
   position: absolute;
@@ -28,6 +28,7 @@
 }
 
 .vc-mic,
+.vc-listen,
 .vc-chat-toggle {
   position: relative;
   display: flex;
@@ -47,15 +48,18 @@
 }
 
 .vc-mic:hover,
+.vc-listen:hover,
 .vc-chat-toggle:hover {
   border-color: rgba(232, 228, 218, .55);
   background: rgba(16, 20, 23, .9);
 }
 
 .vc-mic:active,
+.vc-listen:active,
 .vc-chat-toggle:active { transform: scale(.975); }
 
 .vc-mic:focus-visible,
+.vc-listen:focus-visible,
 .vc-chat-toggle:focus-visible,
 .vc-panel button:focus-visible,
 .vc-panel input:focus-visible {
@@ -85,6 +89,32 @@
   stroke-linecap: round;
   stroke-linejoin: round;
 }
+
+.vc-listen {
+  display: grid;
+  place-items: center;
+  width: 46px;
+  height: 46px;
+  min-height: 46px;
+  padding: 0;
+  border-radius: 50%;
+  color: #8affc1;
+}
+
+.vc-listen svg {
+  width: 20px;
+  height: 20px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.7;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.vc-listen .vc-listen-slash { display: none; }
+.vc-listen.is-muted { color: #ff9c8d; border-color: rgba(255, 90, 64, .4); background: rgba(255, 90, 64, .1); }
+.vc-listen.is-muted .vc-listen-waves { display: none; }
+.vc-listen.is-muted .vc-listen-slash { display: block; }
 
 .vc-mic-copy,
 .vc-chat-copy {
@@ -388,6 +418,34 @@ body.vc-panel-open .vc-banner { opacity: .55; }
   letter-spacing: .04em;
 }
 
+.vc-moderation {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin-top: 12px;
+  padding: 8px 10px;
+  border: 1px solid rgba(138, 255, 193, .16);
+  background:
+    linear-gradient(110deg, rgba(138, 255, 193, .055), transparent 58%),
+    rgba(255, 255, 255, .018);
+  color: rgba(232, 228, 218, .58);
+  font: 500 9px/1.5 var(--f-mono);
+  letter-spacing: .035em;
+}
+
+.vc-moderation svg {
+  width: 14px;
+  height: 14px;
+  flex: none;
+  margin-top: 1px;
+  fill: none;
+  stroke: #8affc1;
+  stroke-width: 1.55;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  opacity: .82;
+}
+
 .vc-close {
   display: grid;
   place-items: center;
@@ -453,6 +511,24 @@ body.vc-panel-open .vc-banner { opacity: .55; }
 
 .vc-voice-off:hover { border-color: #ff5a40; color: #ffc0b6; }
 
+.vc-voice-mute {
+  margin-left: auto;
+  min-height: 24px;
+  padding: 0 9px;
+  border: 1px solid rgba(232, 228, 218, .2);
+  border-radius: 999px;
+  background: rgba(232, 228, 218, .04);
+  color: rgba(232, 228, 218, .7);
+  font: 600 8px/1 var(--f-mono);
+  letter-spacing: .1em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+
+.vc-voice-mute:hover { border-color: var(--signal); color: var(--signal); }
+.vc-voice-mute.is-muted { border-color: rgba(255, 90, 64, .42); color: #ff9c8d; background: rgba(255, 90, 64, .08); }
+.vc-voice-mute + .vc-voice-off { margin-left: 6px; }
+
 .vc-peers {
   display: flex;
   flex-wrap: wrap;
@@ -472,6 +548,8 @@ body.vc-panel-open .vc-banner { opacity: .55; }
   color: rgba(232, 228, 218, .74);
   font: 600 9px/1 var(--f-mono);
   letter-spacing: .03em;
+  cursor: pointer;
+  font-family: inherit;
 }
 
 .vc-peer i {
@@ -722,6 +800,7 @@ body.vc-panel-open .vc-rail { opacity: 1; }
   }
 
   .vc-mic,
+  .vc-listen,
   .vc-chat-toggle {
     width: 48px;
     height: 48px;
@@ -774,6 +853,7 @@ body.vc-panel-open .vc-rail { opacity: 1; }
   .vc-banner.on .vc-banner-card,
   .vc-panel { animation-duration: .01ms !important; }
   .vc-mic,
+  .vc-listen,
   .vc-chat-toggle,
   .vc-meter i { transition: none !important; }
 }

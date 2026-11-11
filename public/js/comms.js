@@ -10,12 +10,11 @@
 
   const MAX_TEXT = 80;
   const BANNER_MS = 6200;
-  const RTC_CONFIG = {
-    iceServers: [
-      { urls: ['stun:stun.l.google.com:19302', 'stun:stun1.l.google.com:19302'] }
-    ],
-    bundlePolicy: 'max-bundle'
-  };
+  const OUT_RATE = 16000;
+  const OUT_FRAME_SAMPLES = 320;
+  const MAX_AHEAD = 0.8;
+  const VOICE_MAGIC = 0x56;
+  const MUTE_KEY = 'saltline.voice.incomingMuted';
 
   function t(key, vars) {
     const raw = dictionary[key];
@@ -55,6 +54,9 @@
         <span class="vc-mic-copy"><b id="vc-mic-label"></b><em id="vc-mic-hint"></em></span>
         <span class="vc-meter" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></span>
       </button>
+      <button class="vc-listen" id="vc-listen" type="button" aria-pressed="false">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M11 5.5 6.5 9H4v6h2.5L11 18.5v-13Z"/><path class="vc-listen-waves" d="M15 9a4 4 0 0 1 0 6M17.5 6.5a7.5 7.5 0 0 1 0 11"/><path class="vc-listen-slash" d="M4 4l16 16"/></svg>
+      </button>
       <button class="vc-chat-toggle" id="vc-chat-toggle" type="button" aria-expanded="false">
         <span class="vc-aa" aria-hidden="true">Aa</span>
         <span class="vc-chat-copy"><b data-vc-label="bigText"></b><em id="vc-chat-shortcut"></em></span>
@@ -70,10 +72,18 @@
         </div>
         <button class="vc-close" id="vc-close" type="button">×</button>
       </header>
+      <div class="vc-moderation" role="note">
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M12 3.2 5.3 6v5c0 4.3 2.8 8.2 6.7 9.5 3.9-1.3 6.7-5.2 6.7-9.5V6L12 3.2Z" />
+          <path d="m9.1 12 1.9 1.9 3.9-4.2" />
+        </svg>
+        <span data-vc-label="moderationNote"></span>
+      </div>
       <div class="vc-voice-block">
         <div class="vc-voice-head">
           <b data-vc-label="voice"></b>
           <span id="vc-voice-summary"></span>
+          <button class="vc-voice-mute" id="vc-voice-mute" type="button" hidden></button>
           <button class="vc-voice-off" id="vc-voice-off" type="button" hidden></button>
         </div>
         <div class="vc-peers" id="vc-peers"></div>
@@ -108,6 +118,7 @@
     mic: ui.querySelector('#vc-mic'),
     micLabel: ui.querySelector('#vc-mic-label'),
     micHint: ui.querySelector('#vc-mic-hint'),
+    listen: ui.querySelector('#vc-listen'),
     chatToggle: ui.querySelector('#vc-chat-toggle'),
     chatShortcut: ui.querySelector('#vc-chat-shortcut'),
     voiceCount: ui.querySelector('#vc-voice-count'),
@@ -116,6 +127,7 @@
     panelSubtitle: ui.querySelector('#vc-panel-subtitle'),
     close: ui.querySelector('#vc-close'),
     voiceSummary: ui.querySelector('#vc-voice-summary'),
+    voiceMute: ui.querySelector('#vc-voice-mute'),
     voiceOff: ui.querySelector('#vc-voice-off'),
     peers: ui.querySelector('#vc-peers'),
     voiceHint: ui.querySelector('#vc-voice-hint'),
@@ -135,7 +147,8 @@
     voice: t('voice'),
     quick: t('quick'),
     recent: t('recent'),
-    send: t('send')
+    send: t('send'),
+    moderationNote: t('moderationNote')
   };
   for (const node of ui.querySelectorAll('[data-vc-label]')) {
     node.textContent = labels[node.getAttribute('data-vc-label')] || '';
@@ -149,9 +162,12 @@
   el.input.placeholder = t('placeholder');
   el.input.setAttribute('aria-label', t('placeholder'));
   el.voiceOff.textContent = t('closeMic');
+  el.voiceMute.textContent = t('micMute');
   el.empty.textContent = t('noRecent');
   el.mic.setAttribute('aria-label', t('openMic'));
   el.mic.title = t('voiceHint');
+  el.listen.setAttribute('aria-label', t('listenMute'));
+  el.listen.title = t('listenMute');
   el.chatToggle.setAttribute('aria-label', t('bigText'));
 
   const quickCalls = [
@@ -185,10 +201,23 @@
   let lastVoiceSentAt = 0;
   let voicePeers = new Map();
   let lastVoiceSignature = '__init';
-  const peers = new Map();
-  const audioNeedsGesture = new Set();
-  let audioUnlockBound = false;
+  let captureSource = null;
+  let captureProcessor = null;
+  let captureSink = null;
+  let capturePhase = 0;
+  const pcmQueue = [];
+  let playbackContext = null;
+  let playbackGain = null;
+  let incomingMuted = false;
+  let audioBlocked = false;
+  let lastChatAttempt = '';
+  const speakers = new Map();
+  const mutedPeers = new Set();
   let wasOnline = false;
+
+  try {
+    incomingMuted = localStorage.getItem(MUTE_KEY) === '1';
+  } catch (err) { /* storage unavailable */ }
 
   const chatQueue = [];
   let bannerTimer = 0;
@@ -223,7 +252,7 @@
   }
 
   function renderVoice() {
-    const list = sortedVoicePeers().filter((peer) => peer.enabled);
+    const list = sortedVoicePeers();
     const count = list.length;
     const others = list.filter((peer) => peer.id !== myId).length;
     el.voiceCount.hidden = count === 0;
@@ -243,20 +272,29 @@
       : t('shortcutMic');
     el.mic.setAttribute('aria-label', micEnabled ? t('closeMic') : t('openMic'));
     el.voiceOff.hidden = !micEnabled;
+    el.voiceMute.hidden = !micEnabled;
+    el.voiceMute.textContent = localMuted ? t('micUnmute') : t('micMute');
+    el.voiceMute.classList.toggle('is-muted', localMuted);
+
+    el.listen.classList.toggle('is-muted', incomingMuted);
+    el.listen.setAttribute('aria-pressed', incomingMuted ? 'true' : 'false');
+    el.listen.setAttribute('aria-label', incomingMuted ? t('listenUnmute') : t('listenMute'));
+    el.listen.title = incomingMuted ? t('listenUnmute') : t('listenMute');
 
     if (count === 0) {
       el.voiceSummary.textContent = t('voiceIdle');
-      el.voiceHint.textContent = t('voiceHint');
+      el.voiceHint.textContent = incomingMuted ? t('listenMutedToast') : t('voiceHint');
     } else if (others === 0) {
       el.voiceSummary.textContent = t('voicePeers', { n: count });
       el.voiceHint.textContent = t('voiceNoPeers');
     } else {
       el.voiceSummary.textContent = t('voicePeers', { n: count });
-      el.voiceHint.textContent = t('voiceEnabledToast');
+      el.voiceHint.textContent = incomingMuted ? t('listenMutedToast') : t('voiceRelayHint');
     }
 
     const signature = list.map((peer) => (
-      peer.id + ':' + peer.name + ':' + peer.color + ':' + (peer.speaking ? 1 : 0) + ':' + (peer.muted ? 1 : 0)
+      peer.id + ':' + peer.name + ':' + peer.color + ':' + (peer.speaking ? 1 : 0) + ':' +
+      (peer.muted ? 1 : 0) + ':' + (mutedPeers.has(peer.id) ? 1 : 0)
     )).join('|');
     if (signature === lastVoiceSignature) return;
     lastVoiceSignature = signature;
@@ -269,19 +307,30 @@
       return;
     }
     for (const peer of list) {
-      const chip = document.createElement('span');
+      const chip = document.createElement('button');
+      chip.type = 'button';
+      chip.dataset.peerId = peer.id;
       chip.className = 'vc-peer' +
         (peer.id === myId ? ' self' : '') +
         (peer.speaking ? ' speaking' : '') +
-        (peer.muted ? ' muted' : '');
+        (peer.muted || mutedPeers.has(peer.id) ? ' muted' : '');
       chip.style.setProperty('--peer-color', peer.color || '#ffb347');
       const dot = document.createElement('i');
       const name = document.createElement('b');
       name.textContent = peer.id === myId ? t('you') : peer.name;
       const state = document.createElement('em');
-      state.textContent = peer.muted ? t('voiceMuted') : peer.speaking ? t('speaking') : t('voiceLive');
+      state.textContent = peer.id === myId
+        ? (peer.muted ? t('voiceMuted') : t('voiceLive'))
+        : mutedPeers.has(peer.id)
+          ? t('listenMutedShort')
+          : peer.muted
+            ? t('voiceMuted')
+            : peer.speaking
+              ? t('speaking')
+              : t('voiceLive');
       chip.append(dot, name, state);
-      chip.title = peer.name + ' · ' + state.textContent;
+      chip.title = peer.id === myId ? peer.name : t('peerMuteHint', { name: peer.name });
+      if (peer.id !== myId) chip.setAttribute('aria-pressed', mutedPeers.has(peer.id) ? 'true' : 'false');
       el.peers.appendChild(chip);
     }
   }
@@ -292,10 +341,9 @@
       voicePeers.set(player.id, { ...player });
     } else {
       voicePeers.delete(player.id);
-      closePeer(player.id);
+      dropSpeaker(player.id);
     }
     renderVoice();
-    if (micEnabled) connectVoicePeers();
   }
 
   function replaceVoiceRoster(list) {
@@ -304,202 +352,190 @@
       if (!item || !item.id || !item.enabled) continue;
       next.set(item.id, { ...item });
     }
-    for (const id of peers.keys()) {
-      if (!next.has(id)) closePeer(id);
+    for (const id of voicePeers.keys()) {
+      if (!next.has(id)) dropSpeaker(id);
     }
     voicePeers = next;
     renderVoice();
-    if (micEnabled) connectVoicePeers();
   }
 
-  function closePeer(id) {
-    const entry = peers.get(id);
-    if (!entry) return;
-    peers.delete(id);
-    try { entry.pc.onicecandidate = null; } catch (err) { /* ignore */ }
-    try { entry.pc.ontrack = null; } catch (err) { /* ignore */ }
-    try { entry.pc.close(); } catch (err) { /* ignore */ }
-    if (entry.audio) {
-      try { entry.audio.pause(); } catch (err) { /* ignore */ }
-      entry.audio.srcObject = null;
-      entry.audio.remove();
+  function ensurePlaybackGraph() {
+    if (playbackContext) return playbackContext;
+    const AudioCtx = window.AudioContext || window.webkitAudioContext;
+    if (!AudioCtx) return null;
+    try {
+      playbackContext = new AudioCtx({ latencyHint: 'interactive' });
+    } catch (err) {
+      try { playbackContext = new AudioCtx(); } catch (fallbackErr) { return null; }
     }
+    playbackGain = playbackContext.createGain();
+    playbackGain.gain.value = incomingMuted ? 0 : 1;
+    playbackGain.connect(playbackContext.destination);
+    return playbackContext;
   }
 
-  function closeAllPeers() {
-    for (const id of [...peers.keys()]) closePeer(id);
-  }
-
-  function attachRemoteAudio(id, stream) {
-    const entry = peers.get(id);
-    if (!entry || !stream) return;
-    if (entry.audio) {
-      entry.audio.srcObject = stream;
+  function unlockAudio() {
+    const ctx = ensurePlaybackGraph();
+    if (!ctx) return;
+    if (ctx.state === 'suspended') {
+      ctx.resume().then(() => {
+        audioBlocked = false;
+        flushPendingAudio();
+      }).catch(() => {});
     } else {
-      const audio = document.createElement('audio');
-      audio.autoplay = true;
-      audio.playsInline = true;
-      audio.setAttribute('playsinline', '');
-      audio.srcObject = stream;
-      el.audio.appendChild(audio);
-      entry.audio = audio;
-    }
-    const play = () => entry.audio.play().catch(() => {
-      audioNeedsGesture.add(id);
-      bindAudioUnlock();
-      toast(t('popupBlocked'));
-    });
-    play();
-  }
-
-  function bindAudioUnlock() {
-    if (audioUnlockBound) return;
-    audioUnlockBound = true;
-    document.addEventListener('pointerdown', resumeRemoteAudio, true);
-  }
-
-  function resumeRemoteAudio() {
-    for (const entry of peers.values()) {
-      if (!entry.audio || !entry.audio.srcObject) continue;
-      entry.audio.play().catch(() => { /* still blocked */ });
-    }
-    if (!audioNeedsGesture.size) {
-      document.removeEventListener('pointerdown', resumeRemoteAudio, true);
-      audioUnlockBound = false;
+      audioBlocked = false;
+      flushPendingAudio();
     }
   }
 
-  function sendSignal(targetId, signal) {
-    send({ type: 'rtcSignal', targetId, signal });
+  const pendingAudio = [];
+
+  function flushPendingAudio() {
+    if (!playbackContext || playbackContext.state !== 'running') return;
+    while (pendingAudio.length) {
+      const item = pendingAudio.shift();
+      scheduleSamples(item.id, item.samples);
+    }
   }
 
-  async function createPeer(id, initiator) {
-    if (!localStream || !micEnabled) return null;
-    if (peers.has(id)) return peers.get(id);
-    let pc;
+  function dropSpeaker(id) {
+    speakers.delete(id);
+  }
+
+  function scheduleSamples(id, samples) {
+    if (!playbackContext || playbackContext.state !== 'running' || !samples || !samples.length) return;
+    if (incomingMuted || mutedPeers.has(id)) return;
+    const now = playbackContext.currentTime;
+    let entry = speakers.get(id);
+    if (!entry) {
+      entry = { nextPlayAt: 0 };
+      speakers.set(id, entry);
+    }
+    if (!entry.nextPlayAt || entry.nextPlayAt < now + 0.02) entry.nextPlayAt = now + 0.12;
+    if (entry.nextPlayAt > now + MAX_AHEAD) entry.nextPlayAt = now + 0.12;
+
+    let buffer;
     try {
-      pc = new RTCPeerConnection(RTC_CONFIG);
+      buffer = playbackContext.createBuffer(1, samples.length, OUT_RATE);
+      buffer.copyToChannel(samples, 0);
     } catch (err) {
-      toast(t('voiceFailed'));
-      return null;
+      return;
     }
-    const entry = {
-      id,
-      pc,
-      audio: null,
-      pendingCandidates: [],
-      initiator: !!initiator,
-      remoteReady: false,
-      retryAt: 0
-    };
-    peers.set(id, entry);
-    for (const track of localStream.getTracks()) {
-      try { pc.addTrack(track, localStream); } catch (err) { /* ignore */ }
-    }
-    pc.onicecandidate = (event) => {
-      if (!event.candidate) return;
-      let candidate = null;
-      try { candidate = event.candidate.toJSON(); } catch (err) { candidate = event.candidate; }
-      sendSignal(id, { kind: 'ice', candidate });
-    };
-    pc.ontrack = (event) => {
-      attachRemoteAudio(id, event.streams && event.streams[0] ? event.streams[0] : new MediaStream([event.track]));
-    };
-    pc.onconnectionstatechange = () => {
-      const state = pc.connectionState;
-      if (state === 'failed') {
-        closePeer(id);
-        if (micEnabled && voicePeers.has(id)) {
-          window.setTimeout(() => {
-            if (micEnabled && voicePeers.has(id)) createPeer(id, String(myId) < String(id));
-          }, 1600);
-        }
-      }
-      renderVoice();
-    };
-    if (initiator) {
-      try {
-        const offer = await pc.createOffer();
-        if (pc.signalingState !== 'stable' || !peers.has(id)) return entry;
-        await pc.setLocalDescription(offer);
-        sendSignal(id, { kind: 'offer', sdp: pc.localDescription.sdp });
-      } catch (err) {
-        closePeer(id);
-      }
-    }
-    return entry;
-  }
-
-  function connectVoicePeers() {
-    if (!micEnabled || !myId) return;
-    for (const peer of voicePeers.values()) {
-      if (!peer.enabled || peer.id === myId || peers.has(peer.id)) continue;
-      createPeer(peer.id, String(myId) < String(peer.id));
-    }
-  }
-
-  async function handleSignal(msg) {
-    if (!micEnabled || !msg.from || !msg.from.id || !msg.signal) return;
-    const fromId = String(msg.from.id);
-    if (fromId === myId) return;
-    let entry = peers.get(fromId);
-    const signal = msg.signal;
+    let source;
     try {
-      if (signal.kind === 'offer') {
-        if (!entry) entry = await createPeer(fromId, false);
-        if (!entry) return;
-        if (entry.pc.signalingState !== 'stable') {
-          if (String(myId) < fromId) return;
-          await entry.pc.setLocalDescription({ type: 'rollback' });
-        }
-        await entry.pc.setRemoteDescription({ type: 'offer', sdp: signal.sdp });
-        entry.remoteReady = true;
-        await flushCandidates(entry);
-        const answer = await entry.pc.createAnswer();
-        await entry.pc.setLocalDescription(answer);
-        sendSignal(fromId, { kind: 'answer', sdp: entry.pc.localDescription.sdp });
-      } else if (signal.kind === 'answer') {
-        if (!entry || !entry.pc.localDescription) return;
-        if (entry.pc.signalingState !== 'have-local-offer') return;
-        await entry.pc.setRemoteDescription({ type: 'answer', sdp: signal.sdp });
-        entry.remoteReady = true;
-        await flushCandidates(entry);
-      } else if (signal.kind === 'ice') {
-        if (!entry) return;
-        if (!signal.candidate) return;
-        if (!entry.remoteReady) {
-          entry.pendingCandidates.push(signal.candidate);
-        } else {
-          await entry.pc.addIceCandidate(signal.candidate);
-        }
-      }
+      source = playbackContext.createBufferSource();
+      source.buffer = buffer;
+      source.connect(playbackGain);
+      source.start(entry.nextPlayAt);
     } catch (err) {
-      console.warn('[vc] signal failed', err && err.message);
+      return;
     }
+    entry.nextPlayAt += samples.length / OUT_RATE;
   }
 
-  async function flushCandidates(entry) {
-    const pending = entry.pendingCandidates.splice(0);
-    for (const candidate of pending) {
-      try { await entry.pc.addIceCandidate(candidate); } catch (err) { /* ignore */ }
+  function handleAudioFrame(data) {
+    let buffer = null;
+    if (data instanceof ArrayBuffer) {
+      buffer = data;
+    } else if (data && data.buffer instanceof ArrayBuffer) {
+      buffer = data.buffer.slice(data.byteOffset || 0, (data.byteOffset || 0) + data.byteLength);
     }
+    if (!buffer || buffer.byteLength < 7) return;
+    const view = new DataView(buffer);
+    if (view.getUint8(0) !== VOICE_MAGIC) return;
+    const speakerId = 'p' + view.getUint32(1, true);
+    if (speakerId === myId) return;
+    if (incomingMuted || mutedPeers.has(speakerId)) return;
+
+    const pcmBytes = buffer.byteLength - 5;
+    if (pcmBytes < 2 || pcmBytes % 2 !== 0) return;
+    const samples = new Float32Array(pcmBytes / 2);
+    for (let i = 0; i < samples.length; i += 1) {
+      samples[i] = view.getInt16(5 + i * 2, true) / 32768;
+    }
+
+    const ctx = ensurePlaybackGraph();
+    if (!ctx) return;
+    if (ctx.state !== 'running') {
+      if (!audioBlocked) toast(t('popupBlocked'));
+      audioBlocked = true;
+      if (pendingAudio.length < 12) pendingAudio.push({ id: speakerId, samples });
+      return;
+    }
+    audioBlocked = false;
+    scheduleSamples(speakerId, samples);
   }
 
-  function startAnalyser(stream) {
+  function toggleListenMute() {
+    incomingMuted = !incomingMuted;
+    try { localStorage.setItem(MUTE_KEY, incomingMuted ? '1' : '0'); } catch (err) { /* ignore */ }
+    if (playbackGain) playbackGain.gain.value = incomingMuted ? 0 : 1;
+    if (!incomingMuted) unlockAudio();
+    renderVoice();
+    toast(incomingMuted ? t('listenMutedToast') : t('listenUnmutedToast'));
+  }
+
+  function togglePeerMute(id) {
+    if (!id || id === myId) return;
+    if (mutedPeers.has(id)) mutedPeers.delete(id);
+    else mutedPeers.add(id);
+    if (mutedPeers.has(id)) dropSpeaker(id);
+    lastVoiceSignature = '__init';
+    renderVoice();
+  }
+
+  function flushPcm() {
+    while (pcmQueue.length >= OUT_FRAME_SAMPLES) {
+      const pcm = new Int16Array(OUT_FRAME_SAMPLES);
+      for (let i = 0; i < OUT_FRAME_SAMPLES; i += 1) {
+        const sample = Math.max(-1, Math.min(1, pcmQueue[i]));
+        pcm[i] = sample < 0 ? sample * 32768 : sample * 32767;
+      }
+      pcmQueue.splice(0, OUT_FRAME_SAMPLES);
+      if (typeof mp.sendBinary !== 'function' || !mp.sendBinary(pcm.buffer)) break;
+    }
+    if (pcmQueue.length > OUT_RATE) pcmQueue.splice(0, pcmQueue.length - OUT_FRAME_SAMPLES);
+  }
+
+  function startMicGraph(stream) {
     const AudioCtx = window.AudioContext || window.webkitAudioContext;
     if (!AudioCtx) return;
     try {
-      audioContext = new AudioCtx();
+      audioContext = new AudioCtx({ latencyHint: 'interactive' });
       if (audioContext.state === 'suspended') audioContext.resume().catch(() => {});
-      const source = audioContext.createMediaStreamSource(stream);
+      captureSource = audioContext.createMediaStreamSource(stream);
       analyser = audioContext.createAnalyser();
       analyser.fftSize = 512;
       analyser.smoothingTimeConstant = 0.62;
-      source.connect(analyser);
+      captureSource.connect(analyser);
       analyserData = new Uint8Array(analyser.fftSize);
+
+      captureProcessor = audioContext.createScriptProcessor(2048, 1, 1);
+      captureSink = audioContext.createGain();
+      captureSink.gain.value = 0;
+      capturePhase = 0;
+      captureProcessor.onaudioprocess = (event) => {
+        if (!micEnabled || localMuted) {
+          pcmQueue.length = 0;
+          return;
+        }
+        const input = event.inputBuffer.getChannelData(0);
+        const ratio = audioContext.sampleRate / OUT_RATE;
+        while (capturePhase < input.length) {
+          pcmQueue.push(input[Math.floor(capturePhase)] || 0);
+          capturePhase += ratio;
+        }
+        capturePhase -= input.length;
+        if (capturePhase < 0) capturePhase = 0;
+        flushPcm();
+      };
+      captureSource.connect(captureProcessor);
+      captureProcessor.connect(captureSink);
+      captureSink.connect(audioContext.destination);
+
       window.clearInterval(analyserTimer);
       analyserTimer = window.setInterval(() => {
-        if (!analyser || !analyserData || !micEnabled || localMuted) return;
+        if (!analyser || !analyserData || !micEnabled) return;
         analyser.getByteTimeDomainData(analyserData);
         let sum = 0;
         for (let i = 0; i < analyserData.length; i += 1) {
@@ -508,26 +544,56 @@
         }
         const rms = Math.sqrt(sum / analyserData.length);
         const now = performance.now();
-        if (rms > 0.045) lastSpokenAt = now;
-        const nowSpeaking = now - lastSpokenAt < 460;
+        if (!localMuted && rms > 0.045) lastSpokenAt = now;
+        const nowSpeaking = !localMuted && now - lastSpokenAt < 460;
         el.mic.style.setProperty('--level', String(Math.min(1, rms * 14)));
         el.mic.classList.toggle('is-speaking', nowSpeaking);
         if (nowSpeaking !== speaking) sendVoiceState(nowSpeaking);
       }, 120);
     } catch (err) {
-      console.warn('[vc] analyser unavailable', err && err.message);
+      console.warn('[vc] microphone graph unavailable', err && err.message);
+      stopMicGraph();
     }
   }
 
-  function stopAnalyser() {
+  function stopMicGraph() {
     window.clearInterval(analyserTimer);
     analyserTimer = 0;
     analyser = null;
     analyserData = null;
+    pcmQueue.length = 0;
+    capturePhase = 0;
+    if (captureProcessor) {
+      try { captureProcessor.onaudioprocess = null; } catch (err) { /* ignore */ }
+      try { captureProcessor.disconnect(); } catch (err) { /* ignore */ }
+    }
+    if (captureSource) {
+      try { captureSource.disconnect(); } catch (err) { /* ignore */ }
+    }
+    if (captureSink) {
+      try { captureSink.disconnect(); } catch (err) { /* ignore */ }
+    }
+    captureProcessor = null;
+    captureSource = null;
+    captureSink = null;
     if (audioContext) {
       try { audioContext.close(); } catch (err) { /* ignore */ }
     }
     audioContext = null;
+  }
+
+  function setMicMuted(next, showToast) {
+    if (!micEnabled) return;
+    localMuted = !!next;
+    if (localStream) {
+      for (const track of localStream.getAudioTracks()) track.enabled = !localMuted;
+    }
+    pcmQueue.length = 0;
+    if (localMuted) speaking = false;
+    lastVoiceSentAt = 0;
+    sendVoiceState(false);
+    if (showToast) toast(localMuted ? t('micMutedToast') : t('micUnmutedToast'));
+    renderVoice();
   }
 
   async function enableMic() {
@@ -536,7 +602,7 @@
       toast(t('voiceRequiresSecure'));
       return;
     }
-    if (!navigator.mediaDevices || typeof navigator.mediaDevices.getUserMedia !== 'function' || !window.RTCPeerConnection) {
+    if (!navigator.mediaDevices || typeof navigator.mediaDevices.getUserMedia !== 'function') {
       toast(t('voiceUnsupported'));
       return;
     }
@@ -557,11 +623,10 @@
       localMuted = false;
       speaking = false;
       lastSpokenAt = 0;
-      startAnalyser(localStream);
+      startMicGraph(localStream);
       lastVoiceSentAt = 0;
       sendVoiceState(false);
       renderVoice();
-      connectVoicePeers();
       toast(t('voiceEnabledToast'));
     } catch (err) {
       micPending = false;
@@ -580,14 +645,13 @@
     micPending = false;
     localMuted = true;
     speaking = false;
-    stopAnalyser();
+    stopMicGraph();
     if (localStream) {
       for (const track of localStream.getTracks()) {
         try { track.stop(); } catch (err) { /* ignore */ }
       }
     }
     localStream = null;
-    closeAllPeers();
     lastVoiceSentAt = 0;
     sendVoiceState(false);
     renderVoice();
@@ -595,7 +659,7 @@
   }
 
   function toggleMic() {
-    resumeRemoteAudio();
+    unlockAudio();
     if (micEnabled) disableMic(true);
     else enableMic();
   }
@@ -678,6 +742,7 @@
       at: Number(msg.at) || Date.now()
     };
     if (!item.text) return;
+    if (item.id === myId) lastChatAttempt = '';
     recent.unshift(item);
     while (recent.length > 5) recent.pop();
     renderHistory();
@@ -695,6 +760,7 @@
       toast(messages.mp && messages.mp.disconnected ? messages.mp.disconnected : t('voiceFailed'));
       return false;
     }
+    lastChatAttempt = text;
     return true;
   }
 
@@ -717,6 +783,21 @@
   el.voiceOff.addEventListener('click', (event) => {
     event.preventDefault();
     disableMic(true);
+  });
+  el.voiceMute.addEventListener('click', (event) => {
+    event.preventDefault();
+    setMicMuted(!localMuted, true);
+  });
+  el.listen.addEventListener('click', (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    toggleListenMute();
+  });
+  el.peers.addEventListener('click', (event) => {
+    const chip = event.target && event.target.closest ? event.target.closest('[data-peer-id]') : null;
+    if (!chip) return;
+    event.preventDefault();
+    togglePeerMute(chip.dataset.peerId);
   });
   el.quick.addEventListener('click', (event) => {
     const button = event.target && event.target.closest ? event.target.closest('[data-call]') : null;
@@ -814,14 +895,19 @@
       case 'voiceState':
         if (msg.player) upsertVoicePeer(msg.player);
         break;
-      case 'rtcSignal':
-        handleSignal(msg);
-        break;
       case 'chat':
         receiveChat(msg);
         break;
       case 'chatDenied':
-        toast(msg.reason === 'rate' ? t('rate') : t('empty'));
+        if (msg.reason === 'filtered') {
+          if (lastChatAttempt && !el.input.value) {
+            el.input.value = lastChatAttempt;
+            updateCounter();
+          }
+          toast(t('blocked'));
+        } else {
+          toast(msg.reason === 'rate' ? t('rate') : t('empty'));
+        }
         break;
       default:
         break;
@@ -829,12 +915,17 @@
   }
 
   mp.onMessage(handleMessage);
+  if (typeof mp.onBinary === 'function') mp.onBinary(handleAudioFrame);
+
+  document.addEventListener('pointerdown', unlockAudio, true);
+  document.addEventListener('keydown', unlockAudio, true);
 
   window.setInterval(() => {
     const online = !!(mp && mp.connected);
     if (wasOnline && !online) {
-      closeAllPeers();
       voicePeers.clear();
+      speakers.clear();
+      pendingAudio.length = 0;
       lastVoiceSignature = '__init';
       renderVoice();
     } else if (!wasOnline && online && micEnabled) {
@@ -850,14 +941,21 @@
   window.__vc = {
     get micEnabled() { return micEnabled; },
     get micPending() { return micPending; },
-    get peers() { return peers.size; },
-    get peerStates() { return [...peers.values()].map((entry) => ({ id: entry.id, state: entry.pc.connectionState })); },
+    get micMuted() { return localMuted; },
+    get incomingMuted() { return incomingMuted; },
+    get audioBlocked() { return audioBlocked; },
+    get speakers() { return speakers.size; },
+    get relay() { return { transport: 'pcm-relay', sampleRate: OUT_RATE, frameSamples: OUT_FRAME_SAMPLES }; },
+    get mutedPeers() { return [...mutedPeers]; },
     get voicePeers() { return sortedVoicePeers(); },
     get panelOpen() { return panelOpen; },
     openPanel,
     closePanel,
     sendChat,
     toggleMic,
+    toggleListenMute,
+    togglePeerMute,
+    setMicMuted,
     enableMic,
     disableMic
   };

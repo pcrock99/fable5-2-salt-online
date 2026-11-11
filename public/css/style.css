@@ -178,3 +178,130 @@ body.is-touch .lang-switch:focus-within {
 
   .lang-switch button[aria-busy="true"]::after { animation-duration: 1.4s; }
 }
+
+/* ------------------------------------------------ GitHub repository link */
+.salt-repo {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  width: fit-content;
+  max-width: 100%;
+  min-height: 42px;
+  padding: 7px 12px 7px 8px;
+  border: 1px solid rgba(232, 228, 218, 0.24);
+  border-left: 2px solid var(--shell-signal);
+  border-radius: 2px;
+  background:
+    linear-gradient(115deg, rgba(255, 179, 71, 0.1), transparent 48%),
+    rgba(11, 13, 15, 0.68);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.28), inset 0 1px 0 rgba(255, 255, 255, 0.045);
+  color: var(--shell-bone);
+  text-decoration: none;
+  text-shadow: none;
+  pointer-events: auto;
+  backdrop-filter: blur(10px) saturate(1.1);
+  -webkit-backdrop-filter: blur(10px) saturate(1.1);
+  transition: border-color 0.18s ease, background 0.18s ease, transform 0.18s ease;
+}
+
+.salt-repo:hover {
+  border-color: rgba(255, 179, 71, 0.62);
+  background:
+    linear-gradient(115deg, rgba(255, 179, 71, 0.17), transparent 55%),
+    rgba(11, 13, 15, 0.82);
+  transform: translateY(-1px);
+}
+
+.salt-repo:active { transform: translateY(0) scale(0.995); }
+
+.salt-repo:focus-visible {
+  outline: 2px solid var(--shell-signal-hot);
+  outline-offset: 3px;
+}
+
+.salt-repo-glyph {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  flex: none;
+  border: 1px solid rgba(232, 228, 218, 0.16);
+  background: rgba(232, 228, 218, 0.055);
+  color: var(--shell-signal);
+}
+
+.salt-repo-glyph svg { width: 15px; height: 15px; fill: currentColor; }
+
+.salt-repo-copy {
+  display: block;
+  min-width: 0;
+  text-align: left;
+}
+
+.salt-repo-copy b {
+  display: block;
+  font: 600 9px/1 var(--shell-mono);
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--shell-signal);
+}
+
+.salt-repo-copy em {
+  display: block;
+  margin-top: 5px;
+  font: 500 10px/1.35 var(--shell-mono);
+  font-style: normal;
+  letter-spacing: 0.01em;
+  color: rgba(232, 228, 218, 0.72);
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.salt-repo-arrow {
+  margin-left: 6px;
+  flex: none;
+  font: 500 13px/1 var(--shell-mono);
+  color: rgba(232, 228, 218, 0.46);
+  transition: color 0.18s ease, transform 0.18s ease;
+}
+
+.salt-repo:hover .salt-repo-arrow {
+  color: var(--shell-signal-hot);
+  transform: translate(1px, -1px);
+}
+
+.mp-title-repo { margin-top: clamp(12px, 2.2vh, 20px); }
+.mp-paused-repo { margin-top: 18px; }
+.mp-roster-repo { margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--line); }
+
+.salt-repo-compact {
+  width: 100%;
+  min-height: 0;
+  padding: 7px 10px 7px 7px;
+  background: rgba(232, 228, 218, 0.035);
+  box-shadow: none;
+}
+
+.salt-repo-compact .salt-repo-glyph { width: 24px; height: 24px; }
+.salt-repo-compact .salt-repo-glyph svg { width: 13px; height: 13px; }
+.salt-repo-compact .salt-repo-copy em { font-size: 9px; }
+
+@media (max-width: 720px) {
+  .salt-repo { gap: 8px; padding-right: 10px; }
+  .salt-repo-glyph { width: 25px; height: 25px; }
+  .salt-repo-copy em { font-size: 9px; }
+  .salt-repo-arrow { margin-left: 2px; }
+  .mp-title-repo { margin-top: 12px; }
+  .mp-paused-repo { margin-top: 14px; }
+}
+
+@media (max-height: 520px) {
+  .salt-repo { min-height: 36px; padding-top: 5px; padding-bottom: 5px; }
+  .salt-repo-glyph { width: 24px; height: 24px; }
+  .mp-title-repo { margin-top: 9px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .salt-repo,
+  .salt-repo-arrow { transition: none; }
+}

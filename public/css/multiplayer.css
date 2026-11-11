@@ -411,6 +411,12 @@ body.is-playing .mp-chip:hover,
 
 .mp-roster-name input:focus { border-color: var(--signal); }
 
+.mp-roster-name input.is-invalid {
+  border-color: #ff7a90;
+  box-shadow: 0 0 0 2px rgba(255, 122, 144, 0.14);
+  animation: mp-name-shake 0.26s ease;
+}
+
 .mp-roster-name button {
   height: 32px;
   padding: 0 14px;
@@ -424,6 +430,31 @@ body.is-playing .mp-chip:hover,
 }
 
 .mp-roster-name button:hover { background: var(--signal-hot); }
+
+.mp-roster-name button[aria-busy="true"] {
+  opacity: 0.6;
+  cursor: wait;
+}
+
+.mp-name-note {
+  margin: 7px 0 0;
+  color: rgba(232, 228, 218, 0.42);
+  font: 500 9px/1.45 var(--f-mono);
+  letter-spacing: 0.03em;
+}
+
+.mp-name-note::before {
+  content: "◈";
+  margin-right: 5px;
+  color: var(--signal);
+  opacity: 0.75;
+}
+
+@keyframes mp-name-shake {
+  0%, 100% { transform: translateX(0); }
+  25% { transform: translateX(-3px); }
+  75% { transform: translateX(3px); }
+}
 
 .mp-roster-board {
   margin-top: 16px;
@@ -526,4 +557,5 @@ body.mp-respawning .lang-switch {
 @media (prefers-reduced-motion: reduce) {
   .mp-chip[data-state="online"] .mp-dot { animation: none; }
   .mp-fl, .mp-respawn-card, .mp-roster-card { animation-duration: 0.01ms !important; }
+  .mp-roster-name input.is-invalid { animation: none; }
 }

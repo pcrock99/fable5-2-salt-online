@@ -4,6 +4,7 @@ const {
   getOnlinePlayers,
   RESPAWN_MS
 } = require('../realtime/multiplayer');
+const contentFilter = require('../services/contentFilter');
 
 module.exports = {
   health(req, res) {
@@ -21,15 +22,19 @@ module.exports = {
       lang: req.lang,
       title: req.t('game.title'),
       tagline: req.t('game.tagline'),
-      version: '1.4.0',
+      version: '1.11.0',
       engine: 'WebGL / Three.js (bundled)',
       mode: 'free-for-all',
       respawnSeconds: Math.round(RESPAWN_MS / 1000),
       online: getOnlinePlayers().length,
       websocket: '/ws',
+      moderation: contentFilter.descriptor(),
       comms: {
-        voice: 'webrtc-mesh',
-        signaling: 'websocket',
+        voice: 'server-pcm-relay',
+        sampleRate: 16000,
+        frameMs: 20,
+        globalAudience: true,
+        listenerMicRequired: false,
         bigText: true,
         chatMaxLength: 80,
         chatCooldownMs: 1200
