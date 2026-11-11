@@ -4,6 +4,12 @@
 
 项目基于 Node.js、Express、WebSocket 与 Three.js 构建，无需数据库。排行榜保存在本地 `data/` 目录中。
 
+## 在线游玩
+
+无需下载或安装，使用支持 WebGL 的现代浏览器直接进入：
+
+[立即进入盐线行动在线版 →](https://web-jjuuxm.tulingai.com/)
+
 ## 游戏预览
 
 <p align="center">
