@@ -1,7 +1,7 @@
 {
   "meta": {
     "title": "Saltline · Online Free-for-All",
-    "description": "Saltline: an online 3D port firefight in your browser. Every other player is your enemy — go down and respawn 5 seconds later."
+    "description": "Saltline: an online 3D port firefight in your browser. Free-for-all combat, 5-second respawns, live open-mic voice and server-wide big-text chat."
   },
   "lang": {
     "zh": "中文",
@@ -33,6 +33,8 @@
     "sprint": "Sprint",
     "crouch": "Crouch",
     "melee": "Melee",
+    "mic": "Mic on / off",
+    "bigText": "Send big text",
     "pause": "Pause",
     "roster": "Battle roster"
   },
@@ -271,7 +273,7 @@
     "save": "Save",
     "nameSaved": "Callsign updated",
     "nameInvalid": "Callsign must be 1-16 characters",
-    "titleLine": "Online free-for-all · every other player is your enemy · respawn 5 seconds after you go down",
+    "titleLine": "Online free-for-all · all players are enemies · 5s respawn · open voice · server-wide big text",
     "titleOnline": "{n} online",
     "down": "You are down",
     "downBy": "Downed by {name}",
@@ -289,6 +291,53 @@
     "emptyRoster": "No other players in the fight yet",
     "board": "Leaderboard",
     "boardEmpty": "No records yet",
-    "hint": "Down other players · respawn 5s after going down · Tab for roster"
+    "hint": "M for voice · T for big text · respawn 5s after going down · Tab for roster"
+  },
+  "comms": {
+    "kicker": "SALTLINE / COMMS",
+    "voice": "LIVE VOICE",
+    "openMic": "Mic on",
+    "closeMic": "Mic off",
+    "mute": "Mute",
+    "unmute": "Unmute",
+    "voiceLive": "MIC LIVE",
+    "voiceMuted": "MUTED",
+    "voiceIdle": "VOICE OFF",
+    "voiceConnecting": "CONNECTING…",
+    "voiceHint": "Turn on your mic to talk to everyone online",
+    "voiceRequiresSecure": "Voice requires HTTPS or localhost",
+    "voiceUnsupported": "This browser does not support live voice",
+    "voiceDenied": "Microphone permission denied — allow it in browser settings",
+    "voiceFailed": "Could not start the microphone. Check your device and retry",
+    "voiceEnabledToast": "Mic live — online players can hear you",
+    "voiceDisabledToast": "Microphone off",
+    "voiceMutedToast": "Microphone muted",
+    "voiceUnmutedToast": "Microphone unmuted",
+    "voicePeers": "{n} on voice",
+    "voiceNoPeers": "You are the only one on voice",
+    "speaking": "Speaking",
+    "bigText": "BIG TEXT",
+    "panelTitle": "BIG TEXT CHANNEL",
+    "panelSubtitle": "Server-wide · messages appear in giant type",
+    "placeholder": "Type a big-text broadcast…",
+    "send": "Send",
+    "close": "Close",
+    "empty": "Enter a message first",
+    "rate": "Too fast — wait a moment",
+    "sent": "Big text sent",
+    "quick": "QUICK CALLS",
+    "quickHelp": "Need support!",
+    "quickPush": "Push with me!",
+    "quickNice": "Nice shot!",
+    "quickEnemy": "Enemy spotted!",
+    "quickThanks": "Copy, thanks!",
+    "recent": "RECENT",
+    "noRecent": "No messages yet",
+    "you": "You",
+    "microphone": "Microphone",
+    "shortcutMic": "M mic",
+    "shortcutChat": "T big text",
+    "popupBlocked": "Tap the mic button to allow voice playback",
+    "count": "{n}/80"
   }
 }

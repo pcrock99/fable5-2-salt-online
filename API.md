@@ -18,7 +18,7 @@
 - 方法：`GET`
 - 路径：`/`
 - 参数：可选查询参数 `?lang=zh-CN` 或 `?lang=en-US`，会同步写入 `lang` cookie
-- 说明：渲染 `views/index.ejs`，加载多人在线 3D 港口枪战、语言切换、在线人数、战场名单与复活界面。
+- 说明：渲染 `views/index.ejs`，加载多人在线 3D 港口枪战、语言切换、在线人数、战场名单、复活界面、在线语音与大字通讯。
 - 缓存：`Cache-Control: no-store`
 
 ### 静态资源
@@ -27,7 +27,7 @@
 - 方法：`GET`
 - 路径：`/css/*`、`/js/*`
 - 参数：无
-- 说明：提供游戏样式、Three.js 游戏 bundle、多人对战客户端（`/js/multiplayer.js`）、无限弹药补丁、自由航行模式与客户端 i18n 脚本。
+- 说明：提供游戏样式、Three.js 游戏 bundle、多人对战客户端（`/js/multiplayer.js`）、语音与大字通讯（`/js/comms.js`、`/css/comms.css`）、无限弹药补丁、自由航行模式与客户端 i18n 脚本。
 
 ## API
 
@@ -51,9 +51,10 @@
   - `respawnSeconds`：复活等待秒数，当前为 `5`
   - `online`：当前 WebSocket 在线连接数
   - `websocket`：实时对战路径，固定为 `/ws`
-  - `controls`：本地化键鼠操作列表（含 `Tab` 战场名单）
-- 返回示例：`{"ok":true,"lang":"zh-CN","title":"盐线行动","version":"1.1.0","engine":"WebGL / Three.js (bundled)","mode":"free-for-all","respawnSeconds":5,"online":3,"websocket":"/ws","controls":[...]}`
-- 说明：返回本地化标题、版本、引擎、对战模式与操作列表。
+  - `comms`：通讯能力摘要（`voice`、`signaling`、`bigText`、`chatMaxLength`、`chatCooldownMs`）
+  - `controls`：本地化键鼠操作列表（含 `M` 开麦、`T` 大字、`Tab` 战场名单）
+- 返回示例：`{"ok":true,"lang":"zh-CN","title":"盐线行动","version":"1.4.0","engine":"WebGL / Three.js (bundled)","mode":"free-for-all","respawnSeconds":5,"online":3,"websocket":"/ws","comms":{"voice":"webrtc-mesh","signaling":"websocket","bigText":true,"chatMaxLength":80,"chatCooldownMs":1200},"controls":[...]}`
+- 说明：返回本地化标题、版本、引擎、对战模式、通讯能力与操作列表。
 
 ### 排行榜与在线列表
 
@@ -64,9 +65,9 @@
 - 返回字段：
   - `online`：在线连接数
   - `respawnSeconds`：复活等待秒数
-  - `players`：当前在线玩家（`id`、`name`、`color`、`kills`、`deaths`、`streak`、`alive`、`active`）
+  - `players`：当前在线玩家（`id`、`name`、`color`、`kills`、`deaths`、`streak`、`alive`、`active`、`voice`）
   - `leaderboard`：累计战绩（`name`、`kills`、`deaths`、`bestStreak`、`updatedAt`），按击杀降序
-- 返回示例：`{"ok":true,"lang":"zh-CN","online":2,"respawnSeconds":5,"players":[{"id":"p1","name":"RAVEN-42","color":"#ffb347","kills":3,"deaths":1,"streak":2,"alive":true,"active":true}],"leaderboard":[{"name":"RAVEN-42","kills":3,"deaths":1,"bestStreak":2,"updatedAt":1730000000000}]}`
+- 返回示例：`{"ok":true,"lang":"zh-CN","online":2,"respawnSeconds":5,"players":[{"id":"p1","name":"RAVEN-42","color":"#ffb347","kills":3,"deaths":1,"streak":2,"alive":true,"active":true,"voice":{"id":"p1","name":"RAVEN-42","color":"#ffb347","enabled":true,"muted":false,"speaking":false}}],"leaderboard":[{"name":"RAVEN-42","kills":3,"deaths":1,"bestStreak":2,"updatedAt":1730000000000}]}`
 - 说明：战绩在击杀 / 死亡时累加，并异步写回 `data/leaderboard.json`（保留击杀数最高的 300 条）。
 
 ### 问候接口
@@ -100,6 +101,9 @@
 ### 对战规则
 
 - 模式：自由混战（free-for-all），所有其他玩家均为敌人，各自独立作战
+- 在线语音：玩家点击开麦后通过 WebRTC 网状连接与所有已开麦玩家实时通话；服务端只转发 SDP / ICE 信令，不保存音频
+- 语音环境：浏览器要求 HTTPS 或 localhost；麦克风权限由浏览器弹窗授予，关麦时立即停止本地音轨并关闭所有 peer connection
+- 大字通讯：全服广播，单条 1-80 个字符，服务端清洗控制字符与尖括号；同一连接发送间隔 1200 ms
 - 生命值：100；单次命中伤害 34（3 次命中击倒）
 - 复活：被击倒后等待 **5 秒**，由客户端发送 `respawn` 后在距敌人最远的出生点重新进入战场
 - 保护：复活后 2 秒无敌，期间被命中会返回 `hitConfirm.blocked = true`
@@ -118,6 +122,9 @@
 | `hit` | `targetId`(string) | 上报本地命中，服务端扣血并返回 `hitConfirm`；目标被击倒时广播 `kill` |
 | `died` | 无 | 被 AI 或其他非 PvP 原因击倒时上报，服务端记录死亡并启动 5 秒复活计时，返回 `deathAck` |
 | `respawn` | 无 | 请求复活；计时未结束时返回 `respawnWait`，否则返回 `respawned` |
+| `chat` | `text`(string, 1-80) | 发送全服大字消息；成功时所有连接（含发送者）收到 `chat`，过快或为空时收到 `chatDenied` |
+| `voiceState` | `enabled`, `muted`, `speaking`(boolean) | 上报本机麦克风与说话状态；仅状态变化时广播给全服，用于语音成员列表与说话高亮 |
+| `rtcSignal` | `targetId`(string), `signal`{kind:`offer`/`answer`/`ice`, sdp?/candidate?} | WebRTC 点对点信令；仅双方均已开麦时由服务端原样转发给 `targetId`，单条 SDP 上限 12 KB |
 | `ping` | `t`(number) | 应用层延迟探测，服务端原样返回 `pong` |
 
 ### 服务端 → 客户端
@@ -126,7 +133,7 @@
 | --- | --- | --- |
 | `welcome` | `id`, `name`, `color`, `respawnMs`, `online` | 连接建立后立即发送，分配临时代号与专属颜色 |
 | `joined` | `id`, `name`, `color` | 加入成功或改名成功后的确认 |
-| `snapshot` | `t`, `online`, `players[]`, `roster[]`, `you` | 10 Hz 状态帧；`players` 仅含战场上可见玩家（`id`、`name`、`color`、`x`、`y`、`z`、`yaw`、`pitch`、`hp`、`moving`、`sprint`、`crouch`、`shield`） |
+| `snapshot` | `t`, `online`, `players[]`, `roster[]`, `voice[]`, `you` | 10 Hz 状态帧；`players` 仅含战场上可见玩家（`id`、`name`、`color`、`x`、`y`、`z`、`yaw`、`pitch`、`hp`、`moving`、`sprint`、`crouch`、`shield`）；`voice` 为已开麦玩家列表（`id`、`name`、`color`、`enabled`、`muted`、`speaking`） |
 | `kill` | `killer`{id,name,color}\|null, `victim`{id,name,color}, `at` | 击倒播报，用于击杀信息流与排行榜 |
 | `notice` | `kind`(`join`/`leave`/`return`/`rename`), `name`, `id`, 可选 `previous` | 玩家进入 / 离开 / 复活 / 改名提示 |
 | `shot` | `id`, `origin`{x,y,z}, `dir`{x,y,z} | 其他玩家的射击，用于绘制曳光弹 |
@@ -136,6 +143,10 @@
 | `deathAck` | `respawnIn`, `respawnAt` | 收到 `died` 后的确认，含服务端复活时间戳 |
 | `respawnWait` | `ms` | 复活请求过早，附带剩余毫秒数 |
 | `respawned` | `pos`{x,y,z}, `yaw`, `protectedUntil` | 复活成功，客户端在该位置重生并获得短暂保护 |
+| `chat` | `id`, `name`, `color`, `text`, `at` | 大字消息广播；客户端以全屏大字横幅与最近消息列表展示 |
+| `chatDenied` | `reason`(`rate`/`empty`), 可选 `retryIn` | 大字发送被拒绝；`rate` 表示 1200 ms 冷却未结束 |
+| `voiceState` | `player`{id,name,color,enabled,muted,speaking} | 单个玩家开麦 / 关麦 / 静音 / 说话状态变化 |
+| `rtcSignal` | `from`{id,name,color}, `signal`{kind,sdp?/candidate?} | 来自其他开麦玩家的 WebRTC 信令 |
 | `pong` | `t` | 对应用层 `ping` 的响应，用于计算延迟 |
 
 ### 交互示例
@@ -150,6 +161,12 @@
 服务端 → {"type":"deathAck","respawnIn":5000,"respawnAt":1730000005000}
 客户端 → {"type":"respawn"}
 服务端 → {"type":"respawned","pos":{"x":-6,"y":0,"z":18},"yaw":2.14,"protectedUntil":1730000007000}
+客户端 → {"type":"chat","text":"需要支援！"}
+服务端 → {"type":"chat","id":"p3","name":"RAVEN-42","color":"#5fd0ff","text":"需要支援！","at":1730000000000}
+客户端 → {"type":"voiceState","enabled":true,"muted":false,"speaking":true}
+服务端 → {"type":"voiceState","player":{"id":"p3","name":"RAVEN-42","color":"#5fd0ff","enabled":true,"muted":false,"speaking":true}}
+客户端 → {"type":"rtcSignal","targetId":"p1","signal":{"kind":"offer","sdp":"v=0..."}}
+服务端 → {"type":"rtcSignal","from":{"id":"p3","name":"RAVEN-42","color":"#5fd0ff"},"signal":{"kind":"offer","sdp":"v=0..."}}
 ```
 
 ## 错误响应

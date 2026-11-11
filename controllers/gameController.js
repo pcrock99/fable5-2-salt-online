@@ -1,5 +1,9 @@
 const startedAt = Date.now();
-const { getLeaderboard, getOnlinePlayers, RESPAWN_MS } = require('../realtime/multiplayer');
+const {
+  getLeaderboard,
+  getOnlinePlayers,
+  RESPAWN_MS
+} = require('../realtime/multiplayer');
 
 module.exports = {
   health(req, res) {
@@ -17,12 +21,19 @@ module.exports = {
       lang: req.lang,
       title: req.t('game.title'),
       tagline: req.t('game.tagline'),
-      version: '1.1.0',
+      version: '1.4.0',
       engine: 'WebGL / Three.js (bundled)',
       mode: 'free-for-all',
       respawnSeconds: Math.round(RESPAWN_MS / 1000),
       online: getOnlinePlayers().length,
       websocket: '/ws',
+      comms: {
+        voice: 'webrtc-mesh',
+        signaling: 'websocket',
+        bigText: true,
+        chatMaxLength: 80,
+        chatCooldownMs: 1200
+      },
       controls: [
         { keys: 'WASD', label: req.t('controls.move') },
         { keys: 'Mouse', label: req.t('controls.look') },
@@ -34,6 +45,8 @@ module.exports = {
         { keys: 'Shift', label: req.t('controls.sprint') },
         { keys: 'C / Ctrl', label: req.t('controls.crouch') },
         { keys: 'F', label: req.t('controls.melee') },
+        { keys: 'M', label: req.t('controls.mic') },
+        { keys: 'T', label: req.t('controls.bigText') },
         { keys: 'Tab', label: req.t('controls.roster') },
         { keys: 'Esc / P', label: req.t('controls.pause') }
       ]

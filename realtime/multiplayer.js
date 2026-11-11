@@ -12,6 +12,9 @@ const MAX_NAME = 16;
 const WORLD_LIMIT = 900;
 const MAX_MSG_PER_SEC = 160;
 const MAX_SPAWNS = 32;
+const CHAT_MAX = 80;
+const CHAT_COOLDOWN_MS = 1200;
+const MAX_SDP = 12000;
 
 const COLORS = ['#ffb347', '#5fd0ff', '#8affc1', '#ff7a90', '#c39bff', '#ffe066', '#7ef0e2', '#ff9f5a'];
 
@@ -65,6 +68,58 @@ function colorFor(id) {
   const text = String(id || '');
   for (let i = 0; i < text.length; i += 1) hash = (hash * 31 + text.charCodeAt(i)) >>> 0;
   return COLORS[hash % COLORS.length];
+}
+
+function sanitizeChat(raw) {
+  if (typeof raw !== 'string') return '';
+  return raw
+    .replace(/[\u0000-\u001f\u007f]/g, ' ')
+    .replace(/[<>]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, CHAT_MAX);
+}
+
+function publicVoice(player) {
+  return {
+    id: player.id,
+    name: player.name,
+    color: player.color,
+    enabled: !!player.voice.enabled,
+    muted: player.voice.enabled ? !!player.voice.muted : true,
+    speaking: !!player.voice.enabled && !player.voice.muted && !!player.voice.speaking
+  };
+}
+
+function voicePayload() {
+  return [...players.values()]
+    .filter((player) => player.joined && player.voice.enabled)
+    .map(publicVoice);
+}
+
+function sanitizeSignal(raw) {
+  if (!raw || typeof raw !== 'object') return null;
+  const kind = raw.kind === 'answer' ? 'answer' : raw.kind === 'offer' ? 'offer' : raw.kind === 'ice' ? 'ice' : '';
+  if (!kind) return null;
+  if (kind === 'ice') {
+    const candidate = raw.candidate;
+    if (!candidate || typeof candidate !== 'object') return { kind, candidate: null };
+    return {
+      kind,
+      candidate: {
+        candidate: typeof candidate.candidate === 'string' ? candidate.candidate.slice(0, 4096) : '',
+        sdpMid: typeof candidate.sdpMid === 'string' ? candidate.sdpMid.slice(0, 64) : null,
+        sdpMLineIndex: Number.isFinite(Number(candidate.sdpMLineIndex))
+          ? Math.max(0, Math.min(32, Math.floor(Number(candidate.sdpMLineIndex))))
+          : null,
+        usernameFragment: typeof candidate.usernameFragment === 'string'
+          ? candidate.usernameFragment.slice(0, 128)
+          : null
+      }
+    };
+  }
+  if (typeof raw.sdp !== 'string' || !raw.sdp || raw.sdp.length > MAX_SDP) return null;
+  return { kind, sdp: raw.sdp };
 }
 
 function send(ws, payload) {
@@ -197,7 +252,8 @@ function getOnlinePlayers() {
     deaths: player.deaths,
     streak: player.streak,
     alive: player.alive,
-    active: player.active
+    active: player.active,
+    voice: publicVoice(player)
   }));
 }
 
@@ -213,7 +269,8 @@ function rosterPayload() {
       deaths: player.deaths,
       streak: player.streak,
       alive: player.alive,
-      active: player.active
+      active: player.active,
+      voice: publicVoice(player)
     }))
     .sort((a, b) => b.kills - a.kills || a.deaths - b.deaths || a.name.localeCompare(b.name));
 }
@@ -288,6 +345,65 @@ function handleMessage(player, raw) {
       player.spawns = sanitizeSpawns(msg.spawns);
       break;
     }
+    case 'chat': {
+      if (!player.joined) break;
+      if (now - player.lastChatAt < CHAT_COOLDOWN_MS) {
+        send(player.ws, {
+          type: 'chatDenied',
+          reason: 'rate',
+          retryIn: CHAT_COOLDOWN_MS - (now - player.lastChatAt)
+        });
+        break;
+      }
+      const text = sanitizeChat(msg.text);
+      if (!text) {
+        send(player.ws, { type: 'chatDenied', reason: 'empty' });
+        break;
+      }
+      player.lastChatAt = now;
+      broadcast({
+        type: 'chat',
+        id: player.id,
+        name: player.name,
+        color: player.color,
+        text,
+        at: now
+      });
+      break;
+    }
+    case 'voiceState': {
+      if (!player.joined) break;
+      const enabled = msg.enabled === true;
+      const muted = enabled ? msg.muted === true : true;
+      const next = {
+        enabled,
+        muted,
+        speaking: enabled && !muted && msg.speaking === true
+      };
+      if (player.voice.enabled === next.enabled &&
+          player.voice.muted === next.muted &&
+          player.voice.speaking === next.speaking) break;
+      player.voice = next;
+      broadcast({
+        type: 'voiceState',
+        player: publicVoice(player)
+      });
+      break;
+    }
+    case 'rtcSignal': {
+      if (!player.joined) break;
+      const target = players.get(String(msg.targetId));
+      if (!target || target === player) break;
+      if (!player.voice.enabled || !target.voice.enabled) break;
+      const signal = sanitizeSignal(msg.signal);
+      if (!signal) break;
+      send(target.ws, {
+        type: 'rtcSignal',
+        from: { id: player.id, name: player.name, color: player.color },
+        signal
+      });
+      break;
+    }
     case 'rename': {
       const next = uniqueName(msg.name, player);
       if (next === player.name) break;
@@ -295,6 +411,9 @@ function handleMessage(player, raw) {
       player.name = next;
       send(player.ws, { type: 'joined', id: player.id, name: player.name, color: player.color });
       broadcast({ type: 'notice', kind: 'rename', name: player.name, previous, id: player.id });
+      if (player.voice.enabled) {
+        broadcast({ type: 'voiceState', player: publicVoice(player) });
+      }
       break;
     }
     case 'state': {
@@ -438,6 +557,8 @@ function addPlayer(ws) {
     protectedUntil: 0,
     lastShotAt: 0,
     lastHitAt: 0,
+    lastChatAt: 0,
+    voice: { enabled: false, muted: true, speaking: false },
     lastSeen: Date.now(),
     joined: false,
     msgWindow: Math.floor(Date.now() / 1000),
@@ -458,7 +579,19 @@ function addPlayer(ws) {
 
 function removePlayer(player, reason) {
   if (!players.has(player.id)) return;
+  const hadVoice = player.voice.enabled;
   players.delete(player.id);
+  if (hadVoice) {
+    broadcast({
+      type: 'voiceState',
+      player: {
+        ...publicVoice(player),
+        enabled: false,
+        muted: true,
+        speaking: false
+      }
+    });
+  }
   if (player.kills || player.deaths) {
     touchBoard(player.name, 0, 0, player.bestStreak);
   }
@@ -495,6 +628,7 @@ function tick() {
       online: players.size,
       players: visible,
       roster,
+      voice: voicePayload(),
       you: {
         id: player.id,
         name: player.name,

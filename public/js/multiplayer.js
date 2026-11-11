@@ -70,6 +70,7 @@
   let pendingDeathBy = null;
 
   const avatars = new Map();
+  const messageListeners = new Set();
   let lastFrame = 0;
 
   /* ------------------------------------------------------------------- UI */
@@ -907,6 +908,22 @@
     }
   }
 
+  function onMessage(handler) {
+    if (typeof handler !== 'function') return () => {};
+    messageListeners.add(handler);
+    return () => messageListeners.delete(handler);
+  }
+
+  function notifyMessage(msg) {
+    for (const handler of messageListeners) {
+      try {
+        handler(msg);
+      } catch (err) {
+        console.error('[mp] message listener failed', err);
+      }
+    }
+  }
+
   function sendState(force) {
     if (!G || !G.player || !send) return;
     const now = performance.now();
@@ -989,6 +1006,7 @@
 
   function handleMessage(msg) {
     if (!msg || typeof msg.type !== 'string') return;
+    notifyMessage(msg);
     switch (msg.type) {
       case 'welcome': {
         myId = msg.id;
@@ -1247,6 +1265,33 @@
     get avatars() { return avatars.size; },
     get roster() { return rosterData.slice(); },
     get respawn() { return { active: respawn.active, until: respawn.until }; },
+    get game() { return G; },
+    get avatarList() {
+      return [...avatars.values()]
+        .filter((avatar) => avatar.group.visible && avatar.data)
+        .map((avatar) => ({
+          id: avatar.id,
+          x: avatar.group.position.x,
+          y: avatar.group.position.y,
+          z: avatar.group.position.z,
+          data: avatar.data
+        }));
+    },
+    pickAvatar(origin, dir, range) {
+      if (!origin || !dir) return null;
+      let best = null;
+      const limit = Number(range) || 300;
+      for (const avatar of avatars.values()) {
+        if (!avatar.group.visible || !avatar.data) continue;
+        const pos = avatar.group.position;
+        const hit = rayBox(origin, dir, pos.x, pos.y + 0.95, pos.z, 0.48, 0.98, 0.48);
+        if (hit == null || hit <= 0.35 || hit >= limit) continue;
+        if (!best || hit < best.dist) best = { id: avatar.id, dist: hit, data: avatar.data };
+      }
+      return best;
+    },
+    toast,
+    onMessage,
     send
   };
 })();

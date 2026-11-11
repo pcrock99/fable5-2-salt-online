@@ -9,6 +9,7 @@ const { attachMultiplayer } = require('./realtime/multiplayer');
 const app = express();
 const PORT = process.env.PORT || 3000;
 const HOST = process.env.HOST || '127.0.0.1';
+const ASSET_VERSION = '20261111-comms';
 
 app.set('view engine', 'ejs');
 app.set('views', path.join(__dirname, 'views'));
@@ -77,7 +78,7 @@ app.use(express.json({ limit: '64kb' }));
 app.use(express.urlencoded({ extended: true }));
 app.use(express.static(path.join(__dirname, 'public'), {
   etag: true,
-  maxAge: '1h'
+  maxAge: '5m'
 }));
 
 app.use('/api', apiRouter);
@@ -95,7 +96,8 @@ app.get('/', (req, res) => {
       return String(key || '').split('.').reduce((acc, part) => (acc == null ? acc : acc[part]), dict) || String(key || '');
     },
     lang,
-    messages: locales[lang] || locales['zh-CN']
+    messages: locales[lang] || locales['zh-CN'],
+    assetVersion: ASSET_VERSION
   });
 });
 
