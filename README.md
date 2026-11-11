@@ -4,6 +4,30 @@
 
 项目基于 Node.js、Express、WebSocket 与 Three.js 构建，无需数据库。排行榜保存在本地 `data/` 目录中。
 
+## 游戏预览
+
+<p align="center">
+  <a href="docs/media/multiplayer-demo.mp4">
+    <img src="docs/media/multiplayer-demo.gif" width="360" alt="盐线行动多人对战演示">
+  </a>
+</p>
+
+<p align="center"><sub>多人联机实机演示 · 点击预览图查看视频</sub></p>
+
+| 移动端任务界面 | 移动端多人对战 |
+| --- | --- |
+| ![移动端任务界面](docs/media/mobile-mission.jpg) | ![移动端多人对战](docs/media/mobile-multiplayer.jpg) |
+
+| 仓库室内场景 | 仓库高台场景 |
+| --- | --- |
+| ![仓库室内场景](docs/media/warehouse-interior.jpg) | ![仓库高台场景](docs/media/warehouse-catwalk.jpg) |
+
+| 码头交火 | 集装箱通道 |
+| --- | --- |
+| ![码头交火](docs/media/pier-firefight.jpg) | ![集装箱通道](docs/media/container-yard.jpg) |
+
+更多截图与视频素材位于 [`docs/media/`](docs/media/)。
+
 ## 功能
 
 - 多人在线自由混战（free-for-all）
