@@ -4,6 +4,12 @@
 
 项目基于 Node.js、Express、WebSocket 与 Three.js 构建，无需数据库。排行榜保存在本地 `data/` 目录中。
 
+> **来源与授权声明**
+>
+> 本项目的原始作品是 [Felix Rieseberg 发布的 Claude Artifact](https://claude.ai/artifact/BGY1SztrAYcJQHSsnHHGmp)，由作者以 Fable 5.2 单次提示生成并公开展示。
+>
+> 当前仓库由维护者整理并增加多人联机能力，**不是** Felix Rieseberg 或 Anthropic 的官方仓库，也未获得其官方背书。原作品及原平台内容遵循其自身条款；本仓库的 MIT License 仅适用于维护者有权授权的新增与整理内容。
+
 ## 在线游玩
 
 无需下载或安装，使用支持 WebGL 的现代浏览器直接进入：
@@ -49,6 +55,9 @@
 
 本仓库所呈现的浏览器游戏，以 [Felix Rieseberg（@felixrieseberg）](https://x.com/felixrieseberg) 于 2026 年 11 月 10 日在 X 上展示的 **Fable 5.2 单次提示生成游戏实验**为项目源头，并在此基础上补充了 Node.js 服务端、WebSocket 多人联机、5 秒复活、排行榜等功能。
 
+- 原始作品：[Claude Artifact 原链接](https://claude.ai/artifact/BGY1SztrAYcJQHSsnHHGmp)
+- 原作者账号：[Felix Rieseberg（@felixrieseberg）](https://x.com/felixrieseberg)
+
 原帖所述上游实验数据如下，不计本仓库的改造与部署成本：
 
 - 游戏中的模型、声音与纹理均从零生成。
@@ -62,7 +71,7 @@
 - 在线版本通过 [tulingai.com](https://tulingai.com/) 提供的托管部署工具发布。
 - 当前在线入口：[立即进入盐线行动在线版](https://web-jjuuxm.tulingai.com/)。
 
-当前仓库由维护者整理与二次开发，并非 Felix Rieseberg 或 Anthropic 的官方仓库。截图中原帖的 Claude Artifact 链接被界面截断，因此这里仅链接作者账号，不填写推测地址。
+当前仓库由维护者整理与二次开发，并非 Felix Rieseberg 或 Anthropic 的官方仓库。原始作品链接以 [Claude Artifact 完整地址](https://claude.ai/artifact/BGY1SztrAYcJQHSsnHHGmp) 为准。
 
 原帖截图未展示源代码的独立许可证。仓库根目录的 MIT License 仅表示当前维护者对可适用内容作出的授权；再分发或商用前，请核对原作者及原平台的原始条款。
 
